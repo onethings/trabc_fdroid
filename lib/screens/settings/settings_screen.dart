@@ -1,0 +1,498 @@
+// settings_screen.dart
+// A settings screen for the TracDefg app, allowing users to modify preferences and log out.
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:provider/provider.dart';
+import 'package:trabc_fdroid/providers/settings_provider.dart';
+import 'package:trabc_fdroid/providers/theme_provider.dart';
+import 'package:trabc_fdroid/providers/traccar_provider.dart';
+import 'package:trabc_fdroid/screens/settings/calendars_screen.dart';
+import 'package:trabc_fdroid/screens/settings/computed_attributes_screen.dart';
+import 'package:trabc_fdroid/screens/settings/devices_screen.dart';
+import 'package:trabc_fdroid/screens/settings/drivers_screen.dart';
+import 'package:trabc_fdroid/screens/settings/edit_user_screen.dart';
+import 'package:trabc_fdroid/screens/settings/geofences_screen.dart';
+import 'package:trabc_fdroid/screens/settings/groups_screen.dart';
+import 'package:trabc_fdroid/screens/settings/maintenance_screen.dart';
+import 'package:trabc_fdroid/screens/settings/notification_page.dart';
+import 'package:trabc_fdroid/screens/settings/saved_commands_screen.dart';
+import 'package:trabc_fdroid/screens/settings/server_info_screen.dart';
+import 'package:trabc_fdroid/screens/settings/emulator_screen.dart';
+import 'package:trabc_fdroid/screens/reports/reports_screen.dart';
+import 'package:trabc_fdroid/services/localization_service.dart';
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  // Method to show the language selection dialog with more recognizable names
+  void _showLanguageSelectionDialog() {
+    final Map<String, String> languageNames = {
+      'af': 'Afrikaans',
+      'ar_SA': 'العربية (السعودية)',
+      'ar': 'العربية',
+      'az': 'Azərbaycan dili',
+      'bg': 'Български',
+      'bn': 'বাংলা',
+      'ca': 'Català',
+      'cs': 'Čeština',
+      'da': 'Dansk',
+      'de': 'Deutsch',
+      'el': 'Ελληνικά',
+      'en_US': 'English (US)',
+      'es': 'Español',
+      'et': 'Eesti',
+      'fa': 'فارسی',
+      'fi': 'Suomi',
+      'fr': 'Français',
+      'gl': 'Galego',
+      'he': 'עברית',
+      'hi': 'हिन्दी',
+      'hr': 'Hrvatski',
+      'hu': 'Magyar',
+      'hy': 'Հայերեն',
+      'id': 'Bahasa Indonesia',
+      'it': 'Italiano',
+      'ja': '日本語',
+      'ka': 'ქართული',
+      'kk': 'Қазақ',
+      'km': 'ភាសាខ្មែរ',
+      'ko': '한국어',
+      'lo': 'ລາວ',
+      'lt': 'Lietuvių',
+      'lv': 'Latviešu',
+      'mk': 'Македонски',
+      'ml': 'മലയാളം',
+      'mn': 'Монгол',
+      'ms': 'Bahasa Melayu',
+      'nb': 'Norsk bokmål',
+      'ne': 'नेपाली',
+      'nl': 'Nederlands',
+      'nn': 'Norsk nynorsk',
+      'pl': 'Polski',
+      'pt_BR': 'Português (Brasil)',
+      'pt': 'Português',
+      'ro': 'Română',
+      'ru': 'Русский',
+      'si': 'සිංහල',
+      'sk': 'Slovenčina',
+      'sl': 'Slovenščina',
+      'sq': 'Shqip',
+      'sr': 'Srpski',
+      'sv': 'Svenska',
+      'sw': 'Kiswahili',
+      'ta': 'தமிழ்',
+      'th': 'ไทย',
+      'tk': 'Türkmen',
+      'tr': 'Türkçe',
+      'uk': 'Українська',
+      'uz': 'Oʻzbekcha',
+      'vi': 'Tiếng Việt',
+      'zh_TW': '繁體中文',
+      'zh': '简体中文',
+      'my': 'မြန်မာဘာသာ',
+    };
+
+    final List<Locale> supportedLocales = [
+      const Locale('af'),
+      const Locale('ar', 'SA'),
+      const Locale('ar'),
+      const Locale('az'),
+      const Locale('bg'),
+      const Locale('bn'),
+      const Locale('ca'),
+      const Locale('cs'),
+      const Locale('da'),
+      const Locale('de'),
+      const Locale('el'),
+      const Locale('en', 'US'),
+      const Locale('es'),
+      const Locale('et'),
+      const Locale('fa'),
+      const Locale('fi'),
+      const Locale('fr'),
+      const Locale('gl'),
+      const Locale('he'),
+      const Locale('hi'),
+      const Locale('hr'),
+      const Locale('hu'),
+      const Locale('hy'),
+      const Locale('id'),
+      const Locale('it'),
+      const Locale('ja'),
+      const Locale('ka'),
+      const Locale('kk'),
+      const Locale('km'),
+      const Locale('ko'),
+      const Locale('lo'),
+      const Locale('lt'),
+      const Locale('lv'),
+      const Locale('mk'),
+      const Locale('ml'),
+      const Locale('mn'),
+      const Locale('ms'),
+      const Locale('nb'),
+      const Locale('ne'),
+      const Locale('nl'),
+      const Locale('nn'),
+      const Locale('pl'),
+      const Locale('pt', 'BR'),
+      const Locale('pt'),
+      const Locale('ro'),
+      const Locale('ru'),
+      const Locale('si'),
+      const Locale('sk'),
+      const Locale('sl'),
+      const Locale('sq'),
+      const Locale('sr'),
+      const Locale('sv'),
+      const Locale('sw'),
+      const Locale('ta'),
+      const Locale('th'),
+      const Locale('tk'),
+      const Locale('tr'),
+      const Locale('uk'),
+      const Locale('uz'),
+      const Locale('vi'),
+      const Locale('zh', 'TW'),
+      const Locale('zh'),
+      const Locale('my'),
+    ];
+
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => Container(
+        height: 420,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: Theme.of(context).colorScheme.surface,
+        // ListTile needs a Material ancestor; the Cupertino popup route has none.
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('loginLanguage'.tr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: supportedLocales.map((locale) {
+                        final String localeCode = locale.languageCode + (locale.countryCode != null ? '_${locale.countryCode}' : '');
+                        final String? languageName = languageNames[localeCode];
+                        return ListTile(
+                          title: Text(languageName ?? localeCode),
+                          onTap: () async {
+                            await LocalizationService.saveLocale(locale);
+                            if (!mounted) {
+                              return;
+                            }
+                            Get.updateLocale(locale);
+                            if (context.mounted) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showThemeSelectionDialog() {
+    final themeProvider = context.read<ThemeProvider>();
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: Theme.of(context).colorScheme.surface,
+        // RadioListTile needs a Material ancestor; the Cupertino popup route has none.
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('settingsTheme'.tr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                ),
+                RadioGroup<ThemeMode>(
+                  groupValue: themeProvider.themeMode,
+                  onChanged: (ThemeMode? value) {
+                    if (value != null) {
+                      themeProvider.setThemeMode(value);
+                    }
+                    Navigator.of(context).pop();
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<ThemeMode>(title: Text('themeSystem'.tr), value: ThemeMode.system),
+                      RadioListTile<ThemeMode>(title: Text('themeLight'.tr), value: ThemeMode.light),
+                      RadioListTile<ThemeMode>(title: Text('themeDark'.tr), value: ThemeMode.dark),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFontSizeDialog() {
+    final settingsProvider = context.read<SettingsProvider>();
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: Theme.of(context).colorScheme.surface,
+        // RadioListTile needs a Material ancestor; the Cupertino popup route has none.
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('settingsFontSize'.tr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                ),
+                RadioGroup<double>(
+                  groupValue: settingsProvider.fontSizeScale,
+                  onChanged: (double? value) {
+                    if (value != null) {
+                      settingsProvider.setFontSizeScale(value);
+                    }
+                    Navigator.of(context).pop();
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<double>(title: Text('settingsNormal'.tr), value: 1.0),
+                      RadioListTile<double>(title: Text('settingsLarge'.tr), value: 1.2),
+                      RadioListTile<double>(title: Text('settingsExtraLarge'.tr), value: 1.4),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMarkerSizeDialog() {
+    final settingsProvider = context.read<SettingsProvider>();
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        color: Theme.of(context).colorScheme.surface,
+        // RadioListTile needs a Material ancestor; the Cupertino popup route has none.
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('settingsMarkerSize'.tr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                ),
+                RadioGroup<double>(
+                  groupValue: settingsProvider.markerSizeScale,
+                  onChanged: (double? value) {
+                    if (value != null) {
+                      settingsProvider.setMarkerSizeScale(value);
+                    }
+                    Navigator.of(context).pop();
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<double>(title: Text('settingsNormal'.tr), value: 1.0),
+                      RadioListTile<double>(title: Text('settingsLarge'.tr), value: 1.5),
+                      RadioListTile<double>(title: Text('settingsExtraLarge'.tr), value: 2.0),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final traccarProvider = context.read<TraccarProvider>();
+
+    return Scaffold(
+      //   appBar: CupertinoNavigationBar(middle: Text('settingsTitle'.tr), automaticallyImplyLeading: false),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                children: [
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.doc_text),
+                    title: Text('reportTitle'.tr),
+                    trailing: const Icon(CupertinoIcons.chevron_right),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportsScreen()));
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(leading: const Icon(CupertinoIcons.settings), title: Text('loginLanguage'.tr), onTap: _showLanguageSelectionDialog),
+                  ListTile(leading: const Icon(CupertinoIcons.sun_max), title: Text('settingsTheme'.tr), onTap: _showThemeSelectionDialog),
+                  ListTile(leading: const Icon(Icons.text_fields), title: Text('settingsFontSize'.tr), onTap: _showFontSizeDialog),
+                  ListTile(leading: const Icon(CupertinoIcons.location_solid), title: Text('settingsMarkerSize'.tr), onTap: _showMarkerSizeDialog),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.bell),
+                    title: Text('sharedNotifications'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationPage()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.account_circle),
+                    title: Text('settingsUser'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EditUserScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.devices),
+                    title: Text('deviceTitle'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const DevicesScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.location_solid),
+                    title: Text('sharedGeofence'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const GeofencesScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.person_2),
+                    title: Text('settingsGroups'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const GroupsScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.person),
+                    title: Text('sharedDrivers'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const DriversScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.calendar_today),
+                    title: Text('sharedCalendars'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const CalendarsScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.calculate),
+                    title: Text('sharedComputedAttributes'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ComputedAttributesScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.wrench),
+                    title: Text('sharedMaintenance'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const MaintenanceScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.save),
+                    title: Text('sharedSavedCommands'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SavedCommandsScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CupertinoIcons.info_circle),
+                    title: Text('sharedInfoTitle'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ServerInfoScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.developer_mode),
+                    title: Text('sharedEmulator'.tr),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const EmulatorScreen()));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton(
+                onPressed: () {
+                  // Clear session data and disconnect WebSocket（背景執行，不阻塞導頁）
+                  traccarProvider.clearSessionAndData();
+
+                  // 注意：Settings 位於 CupertinoTabView 的「巢狀 Navigator」內，
+                  // 一定要指定 rootNavigator，否則 '/login' 這條命名路由找不到
+                  // → 按了完全沒反應。
+                  Navigator.of(context, rootNavigator: true).pushNamedAndRemoveUntil('/login', (route) => false);
+                },
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50), // Make the button full-width
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
+                child: Text('loginLogout'.tr),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    return Text('${'appVersion'.tr}: ${snapshot.data!.version}+${snapshot.data!.buildNumber}', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 12));
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

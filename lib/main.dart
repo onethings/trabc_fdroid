@@ -1,121 +1,211 @@
+// lib/main.dart
+// Main entry point for the TracDefg Flutter application.
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:trabc_fdroid/constants.dart';
+import 'package:trabc_fdroid/models/report_summary_hive.dart';
+import 'package:trabc_fdroid/models/route_positions_hive.dart';
+import 'package:trabc_fdroid/providers/map_style_provider.dart';
+import 'package:trabc_fdroid/providers/settings_provider.dart';
+import 'package:trabc_fdroid/providers/theme_provider.dart';
+import 'package:trabc_fdroid/providers/traccar_provider.dart';
+import 'package:trabc_fdroid/screens/login_screen.dart';
+import 'package:trabc_fdroid/screens/main_screen.dart';
+import 'package:trabc_fdroid/screens/register_screen.dart';
+import 'package:trabc_fdroid/screens/reports/chart_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/combined_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/events_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/geofences_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/logs_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/positions_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/route_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/scheduled_reports_screen.dart';
+import 'package:trabc_fdroid/screens/reports/stops_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/summary_report_screen.dart';
+import 'package:trabc_fdroid/screens/reports/trips_report_screen.dart';
+import 'package:trabc_fdroid/screens/reset_password_screen.dart';
+import 'package:trabc_fdroid/screens/splash_screen.dart';
+import 'package:trabc_fdroid/services/auth_service.dart';
+import 'package:trabc_fdroid/services/http_interceptor.dart';
+import 'package:trabc_fdroid/services/localization_service.dart';
+import 'package:trabc_fdroid/services/websocket_service.dart';
+import 'package:trabc_fdroid/src/generated_api/api.dart' as api;
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  // Ensure that Flutter is initialized before running the app.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Group initialization tasks into Future.wait for parallel execution.
+  // This reduces the time before runApp is called.
+  final results = await Future.wait([
+    () async {
+      await Hive.initFlutter();
+      Hive.registerAdapter(ReportSummaryHiveAdapter());
+      Hive.registerAdapter(RoutePositionsHiveAdapter());
+      await Hive.openBox('ui_settings');
+    }(),
+    SharedPreferences.getInstance(),
+    initializeDateFormatting(),
+  ]);
+
+  final prefs = results[1] as SharedPreferences;
+  final savedUrl = prefs.getString('traccarServerUrl');
+  final savedLanguageCode = prefs.getString('saved_language_code');
+
+  runApp(TraccarApp(initialUrl: savedUrl, initialLanguageCode: savedLanguageCode));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class TraccarApp extends StatelessWidget {
+  final String? initialUrl;
+  final String? initialLanguageCode;
 
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+  const TraccarApp({super.key, this.initialUrl, this.initialLanguageCode});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+    // Use MultiProvider to provide multiple services to the widget tree.
+    return MultiProvider(
+      providers: [
+        // Provide the API client with the initial server URL.
+        Provider<api.ApiClient>(
+          create: (_) {
+            final client = api.ApiClient(
+              basePath: initialUrl != null ? '$initialUrl/api' : AppConstants.traccarApiUrl, // Use constant default
+            );
+
+            // CRITICAL FIX: Add the Accept header here to force JSON response from the server.
+            // This resolves the 'PK' (ZIP file) error.
+            client.addDefaultHeader('Accept', 'application/json');
+
+            // Wrap the HTTP client with an interceptor that detects 401
+            // (expired session) responses and attempts auto-relogin first.
+            client.client = AuthInterceptingClient(
+              onUnauthorized: () async {
+                debugPrint('AuthInterceptingClient: 401 detected, attempting auto-relogin...');
+
+                // Try auto-relogin using saved credentials
+                final prefs = await SharedPreferences.getInstance();
+                final email = prefs.getString('saved_email');
+                final password = prefs.getString('saved_password');
+
+                if (email != null && password != null) {
+                  try {
+                    // POST /session is excluded from interception, so this is safe
+                    final sessionApi = api.SessionApi(client);
+                    final response = await sessionApi.postSessionWithHttpInfo(email, password);
+
+                    final setCookieHeader = response.headers['set-cookie'];
+                    if (setCookieHeader != null) {
+                      final jSessionId = setCookieHeader.split(';').firstWhere((s) => s.startsWith('JSESSIONID='), orElse: () => '').split('=').last;
+                      if (jSessionId.isNotEmpty) {
+                        await prefs.setString('jSessionId', jSessionId);
+                        await prefs.setString('userJson', response.body);
+                        debugPrint('Auto-relogin succeeded! New session acquired.');
+
+                        // Update the TraccarProvider with the fresh session
+                        final provider = TraccarProvider.instance;
+                        provider?.setSessionId(jSessionId);
+
+                        // Re-fetch data so the UI immediately reflects the refreshed session.
+                        // This is critical when the session expired silently (e.g. app
+                        // backgrounded for a week) and the interceptor catches the first 401.
+                        try {
+                          await provider?.fetchInitialData().timeout(const Duration(seconds: 15));
+                          debugPrint('Data re-fetched after interceptor auto-relogin.');
+                        } catch (fetchError) {
+                          // Data re-fetch failed, but we have a valid session now.
+                          // The WebSocket will connect and push updates shortly.
+                          debugPrint('Data re-fetch after interceptor auto-relogin failed: $fetchError');
+                        }
+
+                        return; // Don't redirect — the app can continue
+                      }
+                    }
+                  } catch (e) {
+                    debugPrint('Auto-relogin failed in interceptor: $e');
+                  }
+                }
+
+                // Auto-relogin failed or no saved credentials — clear & redirect
+                debugPrint('Auto-relogin unavailable, redirecting to login.');
+                await prefs.remove('jSessionId');
+                await prefs.remove('userJson');
+                await prefs.remove('saved_email');
+                await prefs.remove('saved_password');
+                Get.offAllNamed('/login');
+              },
+            );
+
+            return client;
+          },
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+        // Provide the authentication service.
+        Provider<AuthService>(create: (context) => AuthService(apiClient: context.read<api.ApiClient>())),
+        // Provide the WebSocket service.
+        Provider<WebSocketService>(create: (_) => WebSocketService()),
+        // Provide the main TraccarProvider for state management.
+        ChangeNotifierProvider<TraccarProvider>(
+          create: (context) => TraccarProvider(apiClient: context.read<api.ApiClient>(), webSocketService: context.read<WebSocketService>(), authService: context.read<AuthService>()),
+        ),
+        ChangeNotifierProvider<MapStyleProvider>(create: (_) => MapStyleProvider()),
+        ChangeNotifierProvider<ThemeProvider>(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider<SettingsProvider>(create: (_) => SettingsProvider()),
+      ],
+      // Changed MaterialApp to GetMaterialApp to correctly handle GetX localization.
+      child: Consumer2<ThemeProvider, SettingsProvider>(
+        builder: (context, themeProvider, settingsProvider, child) {
+          return GetMaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Trabc',
+            theme: themeProvider.getTheme(Brightness.light),
+            darkTheme: themeProvider.getTheme(Brightness.dark),
+            themeMode: themeProvider.themeMode,
+            builder: (context, child) {
+              final data = MediaQuery.of(context);
+              final brightness = Theme.of(context).brightness;
+              return MediaQuery(
+                data: data.copyWith(textScaler: TextScaler.linear(settingsProvider.fontSizeScale)),
+                // Make every Cupertino widget (incl. CupertinoNavigationBar)
+                // follow the app theme's brightness so day/night mode works
+                // even when dark mode is forced from settings.
+                child: CupertinoTheme(
+                  data: CupertinoThemeData(brightness: brightness),
+                  child: child!,
+                ),
+              );
+            },
+            // Configure localization for the app using GetX properties.
+            translations: LocalizationService(),
+            locale: initialLanguageCode != null ? LocalizationService.getLocaleFromLang(initialLanguageCode!) : Get.deviceLocale ?? LocalizationService.fallbackLocale,
+            fallbackLocale: LocalizationService.fallbackLocale,
+
+            // Define all the application routes.
+            initialRoute: '/',
+            routes: {
+              '/': (context) => const SplashScreen(),
+              '/login': (context) => const LoginScreen(),
+              '/main': (context) => const MainScreen(),
+              '/register': (context) => const RegisterScreen(),
+              '/reset-password': (context) => const ResetPasswordScreen(),
+              '/reports/combined': (context) => const CombinedReportScreen(),
+              '/reports/summary': (context) => const SummaryReportScreen(),
+              '/reports/stops': (context) => const StopsReportScreen(),
+              '/reports/route': (context) => const RouteReportScreen(),
+              '/reports/trips': (context) => const TripsReportScreen(),
+              '/reports/events': (context) => const EventsReportScreen(),
+              '/reports/geofences': (context) => const GeofencesReportScreen(),
+              '/reports/chart': (context) => const ChartReportScreen(),
+              '/reports/positions': (context) => const PositionsReportScreen(),
+              '/reports/logs': (context) => const LogsReportScreen(),
+              '/reports/scheduled': (context) => const ScheduledReportsScreen(),
+            },
+          );
+        },
       ),
     );
   }

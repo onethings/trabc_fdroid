@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.trabc_fdroid"
+    namespace = "com.github.onethings.trabc"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -15,8 +15,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.trabc_fdroid"
+        // Unique application ID for F-Droid publishing.
+        applicationId = "com.github.onethings.trabc"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -47,3 +47,4 @@ kotlin {
 flutter {
     source = "../.."
 }
+

@@ -1,0 +1,17 @@
+Trabc is a Traccar GPS tracking client for Android, built with Flutter and OpenStreetMap.
+
+It connects to any Traccar server (self-hosted or one of the public demo servers) and lets you follow vehicles, people and assets in real time.
+
+Features:
+
+* Live tracking on OpenStreetMap-based maps, with no Google services required
+* Device list with status, last position and recent history
+* Route history playback with speed and stop information
+* Geofences: draw, edit and manage circles and polygons
+* Reports: trips, stops, summary, events, positions, chart and combined reports
+* Notifications and detailed notification settings
+* Share devices, send commands, and manage drivers, groups and maintenance
+* Offline address lookup with an online fallback
+* Light and dark themes, translated into many languages
+
+Trabc contains no proprietary libraries, no ads and no trackers.

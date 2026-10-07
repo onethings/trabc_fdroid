@@ -43,6 +43,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
 # Widget Preview related
 .widget_preview/
+
+# Build artifacts (all modules) — must never be committed for F-Droid
+**/build/
+android/build/
+
+# Machine-specific / signing files — must never be committed for F-Droid
+/android/local.properties
+/android/.gradle/
+/android/app/.cxx/
+*.jks
+*.keystore
+key.properties
