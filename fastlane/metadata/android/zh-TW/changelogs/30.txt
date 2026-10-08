@@ -1,0 +1,4 @@
+首個 F-Droid 版本。
+
+可連接任何自架的 Traccar 伺服器：OpenStreetMap 即時追蹤、歷史軌跡回放、地理圍欄、
+報表與通知。不使用 Google 服務、沒有追蹤器。

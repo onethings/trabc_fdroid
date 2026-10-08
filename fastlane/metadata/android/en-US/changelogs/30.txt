@@ -1,0 +1,4 @@
+First F-Droid release.
+
+Connects to any self-hosted Traccar server: live tracking on OpenStreetMap, route
+history playback, geofences, reports and notifications. No Google services, no trackers.
