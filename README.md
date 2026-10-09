@@ -5,8 +5,15 @@
 <h1 align="center">Trabc</h1>
 
 <p align="center">
-  <b>Tracbc GPS tracking client with open-source maps</b><br>
+  <b>Traccar GPS tracking client with open-source maps</b><br>
   <sub>No Google services · No proprietary libraries · No ads · No trackers</sub>
+</p>
+
+<p align="center">
+  <b>⚠️ Unofficial app</b><br>
+  <sub>This is an independent, community-made client. It is <b>not</b> the official
+  Traccar app and is not affiliated with, sponsored by, or endorsed by the
+  <a href="https://www.traccar.org/">Traccar</a> project or its developers.</sub>
 </p>
 
 <p align="center">
@@ -113,3 +120,8 @@ Nominatim service. The generator that produced those databases is kept at
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+Trabc is an unofficial, independent client for self-hosted Traccar servers. It is
+not affiliated with, sponsored by, or endorsed by the Traccar project. "Traccar"
+is a trademark of its respective owner and is used here only to describe
+compatibility with the Traccar API.
