@@ -5,7 +5,7 @@
 <h1 align="center">Trabc</h1>
 
 <p align="center">
-  <b>Traccar GPS tracking client with open-source maps</b><br>
+  <b>Tracbc GPS tracking client with open-source maps</b><br>
   <sub>No Google services · No proprietary libraries · No ads · No trackers</sub>
 </p>
 
