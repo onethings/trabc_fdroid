@@ -13,10 +13,6 @@
   <a href="https://github.com/onethings/trabc_fdroid/releases/tag/v1.0.34">
     <img height="40" alt="Download APK" src="https://img.shields.io/badge/Download%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white">
   </a>
-  &nbsp;
-  <a href="https://f-droid.org/packages/com.github.onethings.trabc/">
-    <img height="40" alt="F-Droid" src="https://img.shields.io/badge/F--Droid-pending%20review-1976D2?style=for-the-badge&logo=f-droid&logoColor=white">
-  </a>
 </p>
 
 <p align="center">
@@ -72,12 +68,6 @@ Compatibility: **Android 7.0 (API 24) or newer**.
 3. Open the downloaded `.apk` file and tap **Install**.
 4. Launch Trabc and sign in with your Traccar server address and account.
 
-> [!NOTE]
-> **Switching between builds:** the F-Droid build and the GitHub Release build are
-> signed with different keys, so one cannot be installed over the other. Uninstall
-> the existing app before switching from the GitHub build to the F-Droid build
-> (or the other way around).
-
 ### Which APK do I need?
 
 Android apps ship compiled code per CPU architecture. If you are unsure, open the
@@ -119,35 +109,6 @@ in this repository. They were dropped so the repository stays small and fully
 buildable from source. Offline address lookup therefore falls back to the online
 Nominatim service. The generator that produced those databases is kept at
 `scripts/geocoder_generator.py` for reference.
-
-## F-Droid
-
-This repository is laid out so that it can be built directly by the F-Droid
-build server:
-
-- `applicationId`: `com.github.onethings.trabc`
-- Fastlane metadata (icon, descriptions, changelogs) lives in
-  `fastlane/metadata/android/`
-- No prebuilt binaries or machine-specific files are tracked
-- Licensed under GPL-3.0-or-later (see `LICENSE`)
-
-To submit to F-Droid, add a build recipe to the
-[fdroiddata](https://gitlab.com/fdroid/fdroiddata) repository pointing at this
-repository, for example:
-
-```yaml
-Builds:
-  - versionName: 1.0.33
-    versionCode: 29
-    commit: <tag-or-commit>
-    output: build/app/outputs/flutter-apk/app-release.apk
-    srclibs:
-      - flutter@stable
-    prebuild: sed -i -e '/signingConfig/d' -e '/TODO/d' android/app/build.gradle.kts
-    build:
-      - $$flutter$$/bin/flutter config --no-analytics
-      - $$flutter$$/bin/flutter build apk --release
-```
 
 ## License
 
