@@ -2,6 +2,7 @@
 // Provider to manage Traccar API interactions and WebSocket connections.
 import 'package:flutter/material.dart';
 import 'package:trabc_fdroid/services/auth_service.dart';
+import 'package:trabc_fdroid/services/auth_session_store.dart';
 import 'package:trabc_fdroid/services/websocket_service.dart';
 import 'package:trabc_fdroid/src/generated_api/api.dart' as api;
 import 'package:trabc_fdroid/storage/user_database_helper.dart';
@@ -92,6 +93,26 @@ class TraccarProvider with ChangeNotifier {
     return !isVersionAtLeast('5.0');
   }
 
+  /// Evaluates a computed attribute using the 6.16.0+ API endpoint.
+  ///
+  /// Older Traccar servers, including v4.4, do not expose this endpoint.
+  Future<Object?> testComputedAttribute({required int deviceId, required api.Attribute attribute}) async {
+    if (_serverVersion == null) {
+      await fetchServerVersion();
+    }
+    if (_serverVersion == null) {
+      throw StateError('Unable to determine the Traccar server version.');
+    }
+    if (!isVersionAtLeast('6.16.0')) {
+      throw UnsupportedError(
+        'Computed attribute testing requires Traccar 6.16.0 or newer '
+        '(server version: $_serverVersion).',
+      );
+    }
+
+    return api.AttributesApi(apiClient).postAttributesComputedTest(deviceId, attribute);
+  }
+
   /// Fetches the latest known position of a single [deviceId] in a way that
   /// works on every Traccar version, 4.x included. Falls back to the position
   /// already received over the WebSocket when every request fails.
@@ -168,6 +189,12 @@ class TraccarProvider with ChangeNotifier {
     // Wire up the session ID provider so WebSocket reconnects
     // always use the latest session ID, not a potentially stale one.
     webSocketService.sessionIdProvider = () => _sessionId;
+
+    // Keep the app in sync when the shared session is refreshed or cleared
+    // (e.g. by the global 401 interceptor).
+    final sessionStore = AuthSessionStore.instance;
+    sessionStore.onSessionUpdated = setSessionId;
+    sessionStore.onSessionCleared = clearLocalSession;
   }
 
   Future<void> _loadFavorites() async {
@@ -191,6 +218,7 @@ class TraccarProvider with ChangeNotifier {
   // FIX: Method to replace the entire ApiClient instance
   void updateApiClient(api.ApiClient newClient) {
     apiClient = newClient;
+    _serverVersion = null;
   }
 
   void _listenToWebSocket() {
@@ -303,7 +331,11 @@ class TraccarProvider with ChangeNotifier {
     }
 
     await authService.logout();
+  }
 
+  /// Resets all in-memory state without touching the server. Used when the
+  /// session has already been cleared or rejected.
+  Future<void> clearLocalSession() async {
     _sessionId = null;
     _serverVersion = null;
     _devices = [];

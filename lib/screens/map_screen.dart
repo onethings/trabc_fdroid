@@ -33,6 +33,8 @@ const double _kPillRadius = 22; // 切換列膠囊圓角
 const double _kEdgeInset = 16; // 與螢幕邊緣的安全距離
 const double _kControlGap = 12; // 控制群之間的間距
 const double _kGlassBlurSigma = 10; // 毛玻璃模糊強度
+const double _kMaxMapZoom = 19.0;
+const double _kMarkerSelectionRadius = 64.0;
 const Duration _kSymbolTapGuard = Duration(milliseconds: 300); // marker 點擊防誤判窗口
 const Duration _kCameraEventGrace = Duration(milliseconds: 250); // 相機事件滯後寬限
 const int _kMaxTrailPoints = 3000; // 選取裝置軌跡最多保留的點數（避免長時間跟車吃掉記憶體）
@@ -264,6 +266,76 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// 量測 sheet 目前高度；尚未佈局（或面板關閉中）時回傳 null。
+  double? _measureDetailSheetHeight() {
+    final renderObject = _detailSheetKey.currentContext?.findRenderObject();
+    if (renderObject is RenderBox && renderObject.hasSize) {
+      return renderObject.size.height;
+    }
+    return null;
+  }
+
+  /// 把「sheet 蓋住的高度」套成地圖的底部 content inset。
+  ///
+  /// 為什麼不直接把目標座標往上偏移？MapLibre 的 content inset 是由原生端
+  /// 依目前方位角換算的，使用者旋轉地圖後仍然正確；手動換算經緯度只在
+  /// bearing = 0 時成立。套用後相機的「中心」就是面板上方那塊可視區的中心，
+  /// marker 不會被明細面板擋住。
+  Future<void> _syncSheetContentInset({bool animated = true}) async {
+    final controller = _mapController;
+    if (controller == null) return;
+
+    // sheet 由 showBottomSheet 建立，要等下一個 frame 才完成佈局；面板又會在
+    // 讀完偏好設定前先以最小高度出現，所以等到連續兩個 frame 高度相同才套用，
+    // 避免鏡頭先對到錯誤的中心再跳一次。
+    double? measured;
+    if (_isPanelOpen) {
+      for (int i = 0; i < 12; i++) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+        final double? next = _measureDetailSheetHeight();
+        if (next == null) continue;
+        if (next == measured) break;
+        measured = next;
+      }
+    }
+
+    final double bottomInset = _isPanelOpen ? (measured ?? _appliedBottomInset) : 0;
+    if ((bottomInset - _appliedBottomInset).abs() < 0.5) return;
+    _appliedBottomInset = bottomInset;
+
+    _cameraAnimationGraceTimer?.cancel();
+    _isCameraAnimating = true;
+    try {
+      await controller.updateContentInsets(EdgeInsets.only(bottom: bottomInset), animated);
+    } catch (e) {
+      debugPrint('Map content insets update failed: $e');
+    } finally {
+      _cameraAnimationGraceTimer?.cancel();
+      _cameraAnimationGraceTimer = Timer(_kCameraEventGrace, () {
+        _isCameraAnimating = false;
+      });
+    }
+  }
+
+  /// 面板內容高度變動（展開／收合、偏好設定載入完成）時重新同步 inset。
+  void _scheduleSheetInsetSync() {
+    if (_insetSyncScheduled) return;
+    _insetSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _insetSyncScheduled = false;
+      if (mounted) _syncSheetContentInset();
+    });
+  }
+
+  void _toggleMapType(MapStyleProvider mapStyleProvider) {
+    final cameraPosition = _mapController?.cameraPosition;
+    if (cameraPosition != null) {
+      _lastCameraPosition = cameraPosition;
+    }
+    mapStyleProvider.toggleMapType();
+  }
+
   /// 「我的位置」按鈕：跟隨中再按一次 = 取消跟隨（面板保持開啟）；
   /// 未跟隨時按下 = 鏡頭回到目前裝置並重新跟隨。
   void _toggleFollowCurrentDevice() {
@@ -287,8 +359,89 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   List<api.Device> _navigableDevices(TraccarProvider provider) {
     return provider.devices.where((device) {
       final pos = _findPositionOrNull(provider.positions, device.id);
-      return pos != null && pos.latitude != null;
+      return pos != null && pos.latitude != null && pos.longitude != null;
     }).toList();
+  }
+
+  List<api.Device> _devicesNearMarker(api.Device tappedDevice, TraccarProvider provider) {
+    final tappedPosition = _findPositionOrNull(provider.positions, tappedDevice.id);
+    final cameraZoom = _mapController?.cameraPosition?.zoom;
+    if (tappedPosition?.latitude == null || tappedPosition?.longitude == null || cameraZoom == null) {
+      return [tappedDevice];
+    }
+
+    final tappedPoint = _projectToWorldPixels(tappedPosition!, cameraZoom);
+    final nearbyDevices = _navigableDevices(provider).where((device) {
+      final position = _findPositionOrNull(provider.positions, device.id);
+      if (position?.latitude == null || position?.longitude == null) return false;
+
+      final point = _projectToWorldPixels(position!, cameraZoom);
+      final worldSize = 256 * math.pow(2, cameraZoom);
+      final dx = (point.dx - tappedPoint.dx).abs();
+      final wrappedDx = math.min(dx, worldSize - dx);
+      final dy = point.dy - tappedPoint.dy;
+      return math.sqrt(wrappedDx * wrappedDx + dy * dy) <= _kMarkerSelectionRadius;
+    }).toList();
+
+    return nearbyDevices.contains(tappedDevice) ? nearbyDevices : [tappedDevice, ...nearbyDevices];
+  }
+
+  Offset _projectToWorldPixels(api.Position position, double zoom) {
+    final latitude = position.latitude!.toDouble().clamp(-85.05112878, 85.05112878);
+    final longitude = position.longitude!.toDouble();
+    final worldSize = 256 * math.pow(2, zoom);
+    final x = (longitude + 180) / 360 * worldSize;
+    final sinLatitude = math.sin(latitude * math.pi / 180);
+    final y = (0.5 - math.log((1 + sinLatitude) / (1 - sinLatitude)) / (4 * math.pi)) * worldSize;
+    return Offset(x, y);
+  }
+
+  void _handleDeviceMarkerTap(int deviceId, TraccarProvider provider) {
+    final device = provider.devices.firstWhereOrNull((item) => item.id == deviceId);
+    if (device == null) return;
+
+    final nearbyDevices = _devicesNearMarker(device, provider);
+    if (nearbyDevices.length > 1) {
+      _showNearbyDevicePicker(nearbyDevices, provider);
+      return;
+    }
+
+    setState(() => _currentDevice = device);
+    _onDeviceSelected(device, provider.positions, forceShowPanel: true, zoomToMax: true);
+  }
+
+  void _showNearbyDevicePicker(List<api.Device> devices, TraccarProvider provider) {
+    showCupertinoModalPopup<void>(
+      context: context,
+      builder: (BuildContext popupContext) => Material(
+        color: Theme.of(popupContext).colorScheme.surface,
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                  child: Text('pleaseSelectDevice'.tr, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                ),
+                for (final device in devices)
+                  ListTile(
+                    leading: const Icon(Icons.directions_car_rounded),
+                    title: Text(device.name ?? 'Unknown Device'.tr),
+                    onTap: () {
+                      Navigator.of(popupContext).pop();
+                      setState(() => _currentDevice = device);
+                      _onDeviceSelected(device, provider.positions, forceShowPanel: true, zoomToMax: true);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// 指定裝置在清單中的位置（1-based，找不到時回 1），給切換列顯示「n / N」。
@@ -567,6 +720,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   PersistentBottomSheetController? _bottomSheetController;
+
+  /// 底部 sheet（切換列 + 明細面板）的量測目標：量到的實際高度會同步成
+  /// 地圖的底部 content inset，鏡頭中心才會落在面板上方的可視區中央。
+  final GlobalKey _detailSheetKey = GlobalKey();
+  double _appliedBottomInset = 0;
+  bool _insetSyncScheduled = false;
+
   String _formatDate(DateTime? date) {
     if (date == null) return 'N/A';
     return DateFormat.yMd().add_Hms().format(date.toLocal());
@@ -656,7 +816,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   ///   [_updateSelectedDeviceLive] 隨每次位置更新持續跟隨。
   /// - 軌跡從「選取那一刻」重新開始：換車清空，同一台車再次選取（例如按
   ///   「我的位置」恢復跟隨）則保留既有軌跡。
-  void _onDeviceSelected(api.Device device, List<api.Position> allPositions, {bool forceShowPanel = false, bool follow = true}) async {
+  void _onDeviceSelected(api.Device device, List<api.Position> allPositions, {bool forceShowPanel = false, bool follow = true, bool zoomToMax = false}) async {
     final bool deviceChanged = _selectedDeviceNotifier.value?.id != device.id;
 
     final prefs = await SharedPreferences.getInstance();
@@ -701,7 +861,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     if (latLng == null) return;
 
-    await _animateCamera(maplibre.CameraUpdate.newLatLng(latLng));
+    // 先讓地圖可視範圍扣掉明細面板（含上方切換列），鏡頭再對準裝置，
+    // marker 才會落在「面板上緣 ~ 地圖頂部」的正中央，而不是被面板遮住。
+    await _syncSheetContentInset(animated: false);
+    await _animateCamera(zoomToMax ? maplibre.CameraUpdate.newLatLngZoom(latLng, _kMaxMapZoom) : maplibre.CameraUpdate.newLatLng(latLng));
     // 立刻用最新資料跑一次 marker / 跟隨流程，不用等下一次位置更新
     await _scheduleMarkerUpdate(traccarProvider);
 
@@ -834,27 +997,37 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
                   // 控制列與面板放在同一個 Column：控制列永遠排在面板上方，
                   // 由佈局保證不會被面板遮住（不需要量測面板高度）。
+                  // 這裡量的是「控制列 + 面板」整塊高度，同步給地圖的底部 inset。
                   return Consumer<TraccarProvider>(
-                    builder: (context, panelProvider, _) => Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(padding: const EdgeInsets.fromLTRB(_kEdgeInset, 0, _kEdgeInset, _kControlGap), child: _buildBottomControls(panelProvider, currentDev)),
-                        DeviceDetailPanel(
-                          device: currentDev,
-                          position: currentPos ?? api.Position(),
-                          address: currentAddr,
-                          formattedDate: _formatDate(currentPos?.fixTime),
-                          onMoreOptionsPressed: () => _showMoreOptionsDialog(currentDev, currentPos),
-                          onDeletePressed: () {
-                            _bottomSheetController?.close();
-                            _showDeleteConfirmationDialog(currentDev);
-                          },
-                          onRefresh: () async {
-                            final traccarProvider = Provider.of<TraccarProvider>(context, listen: false);
-                            await traccarProvider.fetchInitialData();
-                          },
+                    builder: (context, panelProvider, _) => NotificationListener<SizeChangedLayoutNotification>(
+                      onNotification: (_) {
+                        _scheduleSheetInsetSync();
+                        return true;
+                      },
+                      child: SizeChangedLayoutNotifier(
+                        child: Column(
+                          key: _detailSheetKey,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(padding: const EdgeInsets.fromLTRB(_kEdgeInset, 0, _kEdgeInset, _kControlGap), child: _buildBottomControls(panelProvider, currentDev)),
+                            DeviceDetailPanel(
+                              device: currentDev,
+                              position: currentPos ?? api.Position(),
+                              address: currentAddr,
+                              formattedDate: _formatDate(currentPos?.fixTime),
+                              onMoreOptionsPressed: () => _showMoreOptionsDialog(currentDev, currentPos),
+                              onDeletePressed: () {
+                                _bottomSheetController?.close();
+                                _showDeleteConfirmationDialog(currentDev);
+                              },
+                              onRefresh: () async {
+                                final traccarProvider = Provider.of<TraccarProvider>(context, listen: false);
+                                await traccarProvider.fetchInitialData();
+                              },
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   );
                 },
@@ -872,6 +1045,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _bottomSheetController = null;
           _isFollowingDevice = false;
         });
+        // 面板收起來後把底部 inset 還原，地圖中心回到整個可視區中央。
+        _syncSheetContentInset();
       }
     });
   }
@@ -1115,8 +1290,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 maplibre.MapLibreMap(
                   key: ValueKey(mapStyleProvider.isSatelliteMode),
                   initialCameraPosition: _lastCameraPosition ?? maplibre.CameraPosition(target: maplibre.LatLng(initialLat, initialLng), zoom: initialZoom),
-                  styleString: mapStyleProvider.styleString,
+                  styleString: mapStyleProvider.getStyle(Theme.of(context).brightness),
+                  minMaxZoomPreference: const maplibre.MinMaxZoomPreference(null, _kMaxMapZoom),
                   compassEnabled: false,
+                  trackCameraPosition: true,
                   onCameraMove: (position) {
                     _lastCameraPosition = position;
                     _zoomDebounce?.cancel();
@@ -1136,9 +1313,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       });
                     }
                   },
+                  onCameraIdle: () {
+                    final cameraPosition = _mapController?.cameraPosition;
+                    if (cameraPosition != null) {
+                      _lastCameraPosition = cameraPosition;
+                      debugPrint('Map zoom: ${cameraPosition.zoom}');
+                    }
+                  },
                   onStyleLoadedCallback: _onStyleLoaded,
                   onMapCreated: (controller) {
                     _mapController = controller;
+
+                    // 切換圖層會用新的 ValueKey 重建原生地圖，content inset 不會
+                    // 被保留；面板仍開著時把上次量到的高度補回去。
+                    if (_appliedBottomInset > 0) {
+                      controller.updateContentInsets(EdgeInsets.only(bottom: _appliedBottomInset));
+                    }
 
                     _mapController!.onSymbolTapped.add((symbol) {
                       // 記下時間：緊接而來的 onMapClick 需要靠它避免把面板關掉
@@ -1148,7 +1338,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
                       if (deviceId != null && mounted) {
                         final traccarProvider = Provider.of<TraccarProvider>(context, listen: false);
-                        _onDeviceSelected(traccarProvider.devices.firstWhere((d) => d.id == deviceId), traccarProvider.positions, forceShowPanel: true);
+                        _handleDeviceMarkerTap(deviceId, traccarProvider);
                       }
                     });
                   },
@@ -1179,7 +1369,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _GlassIconButton(icon: mapStyleProvider.isSatelliteMode ? Icons.satellite_alt : Icons.map, label: 'mapLayerToggle'.tr, isActive: mapStyleProvider.isSatelliteMode, onTap: () => mapStyleProvider.toggleMapType()),
+                        _GlassIconButton(icon: mapStyleProvider.isSatelliteMode ? Icons.satellite_alt : Icons.map, label: 'mapLayerToggle'.tr, isActive: mapStyleProvider.isSatelliteMode, onTap: () => _toggleMapType(mapStyleProvider)),
                         const _GlassDivider(),
                         _GlassIconButton(icon: Icons.explore_rounded, label: 'mapCompass'.tr, onTap: () => _animateCamera(maplibre.CameraUpdate.bearingTo(0))),
                         const _GlassDivider(),

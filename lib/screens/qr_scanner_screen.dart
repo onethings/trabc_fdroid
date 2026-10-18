@@ -4,6 +4,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_zxing/flutter_zxing.dart';
+import 'package:get/get.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -27,8 +28,30 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CupertinoNavigationBar(middle: const Text('Scan Server URL')),
-      body: ReaderWidget(codeFormat: Format.qrCode, showGallery: false, onScan: _onScan, onScanFailure: (_) {}),
+      appBar: CupertinoNavigationBar(middle: Text('serverScanQr'.tr)),
+      body: Stack(
+        children: [
+          ReaderWidget(
+            codeFormat: Format.qrCode,
+            showGallery: false,
+            onScan: _onScan,
+            onScanFailure: (_) {},
+          ),
+          // A frame is the whole instruction: no reading required.
+          IgnorePointer(
+            child: Center(
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white70, width: 3),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

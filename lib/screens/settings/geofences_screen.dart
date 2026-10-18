@@ -887,6 +887,7 @@ class AddGeofenceScreenState extends State<AddGeofenceScreen> {
                         subdomains: _mapType == AppMapType.openStreetMap ? _osmSubdomains : const [],
                         userAgentPackageName: 'com.github.onethings.trabc',
                         tileProvider: _tileProvider,
+                        tileBuilder: Theme.of(context).brightness == Brightness.dark && _mapType == AppMapType.openStreetMap ? darkModeTileBuilder : null,
                       ),
                       CircleLayer(circles: _circles),
                       PolygonLayer(polygons: _polygons),
