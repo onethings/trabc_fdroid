@@ -1,0 +1,5 @@
+- Updated login and session handling
+- Improved device list, commands and map screens
+- Refreshed settings and translations
+
+Requires Android 7.0 (API 24) or newer. No Google services, no trackers.
