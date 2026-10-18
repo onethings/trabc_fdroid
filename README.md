@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/onethings/trabc_fdroid/releases/tag/v1.0.34">
+  <a href="https://github.com/onethings/trabc_fdroid/releases/tag/v1.0.35">
     <img height="40" alt="Download APK" src="https://img.shields.io/badge/Download%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white">
   </a>
 </p>
@@ -51,14 +51,14 @@
 
 ## ⬇️ Download & Install
 
-Get **v1.0.34** from the [GitHub Release page](https://github.com/onethings/trabc_fdroid/releases/tag/v1.0.34)
+Get **v1.0.35** from the [GitHub Release page](https://github.com/onethings/trabc_fdroid/releases/tag/v1.0.35)
 (or browse [all releases](https://github.com/onethings/trabc_fdroid/releases)).
 
 | APK                                                                                                                                | Best for                              | Size   |
 | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------ |
-| [**app-arm64-v8a-release.apk**](https://github.com/onethings/trabc_fdroid/releases/download/v1.0.34/app-arm64-v8a-release.apk)     | Almost every phone from ~2016 onwards | ~18 MB |
-| [**app-armeabi-v7a-release.apk**](https://github.com/onethings/trabc_fdroid/releases/download/v1.0.34/app-armeabi-v7a-release.apk) | Older 32-bit devices                  | ~18 MB |
-| [**app-x86_64-release.apk**](https://github.com/onethings/trabc_fdroid/releases/download/v1.0.34/app-x86_64-release.apk)           | x86_64 emulators / tablets            | ~19 MB |
+| [**app-arm64-v8a-release.apk**](https://github.com/onethings/trabc_fdroid/releases/download/v1.0.35/app-arm64-v8a-release.apk)     | Almost every phone from ~2016 onwards | ~18 MB |
+| [**app-armeabi-v7a-release.apk**](https://github.com/onethings/trabc_fdroid/releases/download/v1.0.35/app-armeabi-v7a-release.apk) | Older 32-bit devices                  | ~18 MB |
+| [**app-x86_64-release.apk**](https://github.com/onethings/trabc_fdroid/releases/download/v1.0.35/app-x86_64-release.apk)           | x86_64 emulators / tablets            | ~19 MB |
 
 Not sure which one you need? Pick **arm64-v8a** — it covers virtually all modern
 Android phones. See [Which APK do I need?](#which-apk-do-i-need) below.
