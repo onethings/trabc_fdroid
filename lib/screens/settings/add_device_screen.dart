@@ -73,13 +73,10 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     _category = d?.category ?? (d == null ? 'categoryDefault'.tr : null);
     _disabled = d?.disabled ?? false;
 
-    final attrs =
-        (d?.attributes as Map<String, dynamic>?) ?? const <String, dynamic>{};
+    final attrs = (d?.attributes as Map<String, dynamic>?) ?? const <String, dynamic>{};
     for (final entry in attrs.entries) {
       _attributeKeyControllers.add(TextEditingController(text: entry.key));
-      _attributeValueControllers.add(
-        TextEditingController(text: entry.value?.toString() ?? ''),
-      );
+      _attributeValueControllers.add(TextEditingController(text: entry.value?.toString() ?? ''));
     }
 
     _fetchGroups();
@@ -103,10 +100,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
 
   Future<void> _fetchGroups() async {
     try {
-      final traccarProvider = Provider.of<TraccarProvider>(
-        context,
-        listen: false,
-      );
+      final traccarProvider = Provider.of<TraccarProvider>(context, listen: false);
       final groupsApi = api.GroupsApi(traccarProvider.apiClient);
       final groups = await groupsApi.getGroups();
       if (mounted) {
@@ -124,9 +118,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
   }
 
   Future<void> _scanQrCode() async {
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => const QrScannerScreen()),
-    );
+    final result = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (context) => const QrScannerScreen()));
     if (result != null && result.isNotEmpty && mounted) {
       setState(() => _uniqueIdController.text = result);
     }
@@ -203,15 +195,9 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       id: widget.device?.id,
       name: _nameController.text.trim(),
       uniqueId: _uniqueIdController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty
-          ? null
-          : _phoneController.text.trim(),
-      model: _modelController.text.trim().isEmpty
-          ? null
-          : _modelController.text.trim(),
-      contact: _contactController.text.trim().isEmpty
-          ? null
-          : _contactController.text.trim(),
+      phone: _phoneController.text.trim().isEmpty ? null : _phoneController.text.trim(),
+      model: _modelController.text.trim().isEmpty ? null : _modelController.text.trim(),
+      contact: _contactController.text.trim().isEmpty ? null : _contactController.text.trim(),
       category: _category,
       groupId: _groupId,
       disabled: _disabled,
@@ -219,10 +205,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     );
 
     try {
-      final traccarProvider = Provider.of<TraccarProvider>(
-        context,
-        listen: false,
-      );
+      final traccarProvider = Provider.of<TraccarProvider>(context, listen: false);
       final devicesApi = api.DevicesApi(traccarProvider.apiClient);
 
       if (widget.device == null) {
@@ -235,9 +218,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save device: ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save device: ${e.toString()}')));
       }
     }
   }
@@ -247,16 +228,8 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     final isEditing = widget.device != null;
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '${isEditing ? 'sharedEdit'.tr : 'sharedAdd'.tr} ${'sharedDevice'.tr}',
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.checkmark_circle),
-            tooltip: 'sharedSave'.tr,
-            onPressed: _saveDevice,
-          ),
-        ],
+        title: Text('${isEditing ? 'sharedEdit'.tr : 'sharedAdd'.tr} ${'sharedDevice'.tr}'),
+        actions: [IconButton(icon: const Icon(CupertinoIcons.checkmark_circle), tooltip: 'sharedSave'.tr, onPressed: _saveDevice)],
       ),
       body: SafeArea(
         child: Form(
@@ -265,91 +238,46 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               _sectionHeader('sharedRequired'.tr),
-              TextFormField(
-                controller: _nameController,
-                textInputAction: TextInputAction.next,
-                decoration: _decoration('sharedName'.tr),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Name is required' : null,
-              ),
+              TextFormField(controller: _nameController, textInputAction: TextInputAction.next, decoration: _decoration('sharedName'.tr), validator: (v) => (v == null || v.trim().isEmpty) ? 'Name is required' : null),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _uniqueIdController,
                 decoration: _decoration(
                   'deviceIdentifier'.tr,
                   helper: 'deviceIdentifierHelp'.tr,
-                  suffix: IconButton(
-                    icon: const Icon(Icons.qr_code_scanner_rounded),
-                    tooltip: 'sharedQrCode'.tr,
-                    onPressed: _scanQrCode,
-                  ),
+                  suffix: IconButton(icon: const Icon(Icons.qr_code_scanner_rounded), tooltip: 'sharedQrCode'.tr, onPressed: _scanQrCode),
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Identifier is required'
-                    : null,
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Identifier is required' : null,
               ),
 
               const SizedBox(height: 24),
               _sectionHeader('sharedExtra'.tr),
               if (_loadingGroups)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: LinearProgressIndicator(),
-                )
+                const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator())
               else
                 DropdownButtonFormField<int?>(
                   initialValue: _groupId,
-                  decoration: _decoration(
-                    'groupDialog'.tr,
-                    hint: 'groupNoGroup'.tr,
-                  ),
+                  decoration: _decoration('groupDialog'.tr, hint: 'groupNoGroup'.tr),
                   items: _groupItems(),
                   onChanged: (v) => setState(() => _groupId = v),
                 ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-                decoration: _decoration('sharedPhone'.tr),
-              ),
+              TextFormField(controller: _phoneController, keyboardType: TextInputType.phone, textInputAction: TextInputAction.next, decoration: _decoration('sharedPhone'.tr)),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _modelController,
-                textInputAction: TextInputAction.next,
-                decoration: _decoration('deviceModel'.tr),
-              ),
+              TextFormField(controller: _modelController, textInputAction: TextInputAction.next, decoration: _decoration('deviceModel'.tr)),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _contactController,
-                textInputAction: TextInputAction.next,
-                decoration: _decoration('deviceContact'.tr),
-              ),
+              TextFormField(controller: _contactController, textInputAction: TextInputAction.next, decoration: _decoration('deviceContact'.tr)),
               const SizedBox(height: 12),
-              DropdownButtonFormField<String?>(
-                initialValue: _category,
-                decoration: _decoration('deviceCategory'.tr),
-                items: _categoryItems(),
-                onChanged: (v) => setState(() => _category = v),
-              ),
+              DropdownButtonFormField<String?>(initialValue: _category, decoration: _decoration('deviceCategory'.tr), items: _categoryItems(), onChanged: (v) => setState(() => _category = v)),
               const SizedBox(height: 4),
-              SwitchListTile(
-                title: Text('sharedDisabled'.tr),
-                value: _disabled,
-                onChanged: (v) => setState(() => _disabled = v),
-              ),
+              SwitchListTile(title: Text('sharedDisabled'.tr), value: _disabled, onChanged: (v) => setState(() => _disabled = v)),
 
               const SizedBox(height: 24),
               _sectionHeader('sharedAttributes'.tr),
-              for (var i = 0; i < _attributeKeyControllers.length; i++)
-                _attributeRow(i),
+              for (var i = 0; i < _attributeKeyControllers.length; i++) _attributeRow(i),
               Align(
                 alignment: Alignment.centerLeft,
-                child: OutlinedButton.icon(
-                  onPressed: _addAttribute,
-                  icon: const Icon(Icons.add),
-                  label: Text('sharedAdd'.tr),
-                ),
+                child: OutlinedButton.icon(onPressed: _addAttribute, icon: const Icon(Icons.add), label: Text('sharedAdd'.tr)),
               ),
             ],
           ),
@@ -358,19 +286,8 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     );
   }
 
-  InputDecoration _decoration(
-    String label, {
-    String? helper,
-    Widget? suffix,
-    String? hint,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      helperText: helper,
-      hintText: hint,
-      suffixIcon: suffix,
-      border: const OutlineInputBorder(),
-    );
+  InputDecoration _decoration(String label, {String? helper, Widget? suffix, String? hint}) {
+    return InputDecoration(labelText: label, helperText: helper, hintText: hint, suffixIcon: suffix, border: const OutlineInputBorder());
   }
 
   Widget _sectionHeader(String text) {
@@ -378,31 +295,21 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
       ),
     );
   }
 
   List<DropdownMenuItem<int?>> _groupItems() {
-    final items = <DropdownMenuItem<int?>>[
-      DropdownMenuItem<int?>(value: null, child: Text('groupNoGroup'.tr)),
-    ];
+    final items = <DropdownMenuItem<int?>>[DropdownMenuItem<int?>(value: null, child: Text('groupNoGroup'.tr))];
     var found = false;
     for (final g in _groups ?? const <api.Group>[]) {
       if (g.id == _groupId) found = true;
-      items.add(
-        DropdownMenuItem<int?>(value: g.id, child: Text(g.name ?? '#${g.id}')),
-      );
+      items.add(DropdownMenuItem<int?>(value: g.id, child: Text(g.name ?? '#${g.id}')));
     }
     // Keep the value selectable even if the group no longer exists.
     if (_groupId != null && !found) {
-      items.add(
-        DropdownMenuItem<int?>(value: _groupId, child: Text('#$_groupId')),
-      );
+      items.add(DropdownMenuItem<int?>(value: _groupId, child: Text('#$_groupId')));
     }
     return items;
   }
@@ -412,12 +319,7 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
     if (_category != null && !options.contains(_category)) {
       options.insert(0, _category!);
     }
-    return options
-        .map(
-          (value) =>
-              DropdownMenuItem<String?>(value: value, child: Text(value)),
-        )
-        .toList();
+    return options.map((value) => DropdownMenuItem<String?>(value: value, child: Text(value))).toList();
   }
 
   Widget _attributeRow(int index) {
@@ -428,18 +330,12 @@ class _AddDeviceScreenState extends State<AddDeviceScreen> {
         children: [
           Expanded(
             flex: 2,
-            child: TextFormField(
-              controller: _attributeKeyControllers[index],
-              decoration: _decoration('Key'),
-            ),
+            child: TextFormField(controller: _attributeKeyControllers[index], decoration: _decoration('Key')),
           ),
           const SizedBox(width: 8),
           Expanded(
             flex: 3,
-            child: TextFormField(
-              controller: _attributeValueControllers[index],
-              decoration: _decoration('Value'),
-            ),
+            child: TextFormField(controller: _attributeValueControllers[index], decoration: _decoration('Value')),
           ),
           IconButton(
             icon: const Icon(Icons.remove_circle_outline, color: Colors.red),

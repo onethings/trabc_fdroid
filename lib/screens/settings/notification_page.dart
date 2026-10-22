@@ -39,13 +39,7 @@ class _NotificationPageState extends State<NotificationPage> {
   String? _jSessionId;
 
   // Define the mapping from API types to localization keys
-  static const Map<String, String> notificatorKeys = {
-    'firebase': 'notificatorFirebase',
-    'mail': 'notificatorMail',
-    'sms': 'notificatorSms',
-    'web': 'notificatorWeb',
-    'command': 'notificatorCommand',
-  };
+  static const Map<String, String> notificatorKeys = {'firebase': 'notificatorFirebase', 'mail': 'notificatorMail', 'sms': 'notificatorSms', 'web': 'notificatorWeb', 'command': 'notificatorCommand'};
 
   // Define a new mapping for notification types
   static const Map<String, String> notificationTypeKeys = {
@@ -92,48 +86,30 @@ class _NotificationPageState extends State<NotificationPage> {
         throw Exception('Session not found');
       }
 
-      Map<String, String> headers = {
-        'Content-Type': 'application/json',
-        'Cookie': 'JSESSIONID=$_jSessionId',
-      };
+      Map<String, String> headers = {'Content-Type': 'application/json', 'Cookie': 'JSESSIONID=$_jSessionId'};
 
-      final typesResponse = await http.get(
-        apiConfig.uri('/notifications/types'),
-        headers: headers,
-      );
+      final typesResponse = await http.get(apiConfig.uri('/notifications/types'), headers: headers);
       if (typesResponse.statusCode == 200) {
         _notificationTypes = json.decode(typesResponse.body);
       }
 
-      final notificatorsResponse = await http.get(
-        apiConfig.uri('/notifications/notificators'),
-        headers: headers,
-      );
+      final notificatorsResponse = await http.get(apiConfig.uri('/notifications/notificators'), headers: headers);
       if (notificatorsResponse.statusCode == 200) {
         _notificatorTypes = json.decode(notificatorsResponse.body);
       }
 
-      final commandsResponse = await http.get(
-        apiConfig.uri('/commands'),
-        headers: headers,
-      );
+      final commandsResponse = await http.get(apiConfig.uri('/commands'), headers: headers);
       if (commandsResponse.statusCode == 200) {
         _commands = json.decode(commandsResponse.body);
       }
 
-      final calendarsResponse = await http.get(
-        apiConfig.uri('/calendars'),
-        headers: headers,
-      );
+      final calendarsResponse = await http.get(apiConfig.uri('/calendars'), headers: headers);
       if (calendarsResponse.statusCode == 200) {
         _calendars = json.decode(calendarsResponse.body);
       }
 
       if (widget.notificationId != null) {
-        final notificationResponse = await http.get(
-          apiConfig.uri('/notifications/${widget.notificationId}'),
-          headers: headers,
-        );
+        final notificationResponse = await http.get(apiConfig.uri('/notifications/${widget.notificationId}'), headers: headers);
         if (notificationResponse.statusCode == 200) {
           final data = json.decode(notificationResponse.body);
           _descriptionController.text = data['description'] ?? '';
@@ -159,39 +135,25 @@ class _NotificationPageState extends State<NotificationPage> {
   Future<void> _saveNotification() async {
     if (_formKey.currentState?.validate() ?? false) {
       _formKey.currentState!.save();
-      final apiConfig = ApiConfig.fromApiClient(
-        context.read<TraccarProvider>().apiClient,
-      );
+      final apiConfig = ApiConfig.fromApiClient(context.read<TraccarProvider>().apiClient);
       final body = {
         'description': _descriptionController.text,
         'type': _selectedNotificationType,
         'notificators': _selectedNotificators.join(','),
         'always': _always,
-        if (_selectedNotificators.contains('command'))
-          'commandId': _selectedCommandId,
+        if (_selectedNotificators.contains('command')) 'commandId': _selectedCommandId,
         'calendarId': _selectedCalendarId,
         'attributes': {'priority': _priority},
       };
 
       try {
         http.Response response;
-        Map<String, String> headers = {
-          'Content-Type': 'application/json',
-          'Cookie': 'JSESSIONID=$_jSessionId',
-        };
+        Map<String, String> headers = {'Content-Type': 'application/json', 'Cookie': 'JSESSIONID=$_jSessionId'};
 
         if (widget.notificationId == null) {
-          response = await http.post(
-            apiConfig.uri('/notifications'),
-            headers: headers,
-            body: json.encode(body),
-          );
+          response = await http.post(apiConfig.uri('/notifications'), headers: headers, body: json.encode(body));
         } else {
-          response = await http.put(
-            apiConfig.uri('/notifications/${widget.notificationId}'),
-            headers: headers,
-            body: json.encode(body),
-          );
+          response = await http.put(apiConfig.uri('/notifications/${widget.notificationId}'), headers: headers, body: json.encode(body));
         }
 
         if (!mounted) return;
@@ -208,9 +170,7 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Future<void> _testNotificators() async {
-    final apiConfig = ApiConfig.fromApiClient(
-      context.read<TraccarProvider>().apiClient,
-    );
+    final apiConfig = ApiConfig.fromApiClient(context.read<TraccarProvider>().apiClient);
     final body = {
       'type': _selectedNotificationType,
       'notificators': _selectedNotificators.join(','),
@@ -219,29 +179,18 @@ class _NotificationPageState extends State<NotificationPage> {
     };
 
     try {
-      final response = await http.post(
-        apiConfig.uri('/notifications/test'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': 'JSESSIONID=$_jSessionId',
-        },
-        body: json.encode(body),
-      );
+      final response = await http.post(apiConfig.uri('/notifications/test'), headers: {'Content-Type': 'application/json', 'Cookie': 'JSESSIONID=$_jSessionId'}, body: json.encode(body));
 
       if (!mounted) return;
 
       if (response.statusCode == 204) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('testNotificationSuccess'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('testNotificationSuccess'.tr)));
       } else {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('testNotificationFailed'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('testNotificationFailed'.tr)));
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('testNotificatorsError'.tr)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('testNotificatorsError'.tr)));
     }
   }
 
@@ -262,37 +211,24 @@ class _NotificationPageState extends State<NotificationPage> {
                 children: [
                   Align(
                     alignment: Alignment.centerRight,
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text('sharedSave'.tr),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                    child: CupertinoButton(padding: const EdgeInsets.symmetric(horizontal: 20), child: Text('sharedSave'.tr), onPressed: () => Navigator.pop(context)),
                   ),
                   Expanded(
                     child: SingleChildScrollView(
                       child: ListBody(
                         children: _notificatorTypes.map((notificator) {
-                          final isSelected = _selectedNotificators.contains(
-                            notificator['type'],
-                          );
-                          final String? localizationKey =
-                              notificatorKeys[notificator['type']];
-                          final String displayValue = localizationKey != null
-                              ? localizationKey.tr
-                              : notificator['type'];
+                          final isSelected = _selectedNotificators.contains(notificator['type']);
+                          final String? localizationKey = notificatorKeys[notificator['type']];
+                          final String displayValue = localizationKey != null ? localizationKey.tr : notificator['type'];
                           return CheckboxListTile(
                             value: isSelected,
                             title: Text(displayValue),
                             onChanged: (bool? value) {
                               setState(() {
                                 if (value == true) {
-                                  _selectedNotificators.add(
-                                    notificator['type'],
-                                  );
+                                  _selectedNotificators.add(notificator['type']);
                                 } else {
-                                  _selectedNotificators.remove(
-                                    notificator['type'],
-                                  );
+                                  _selectedNotificators.remove(notificator['type']);
                                 }
                                 this.setState(() {}); // Update parent state
                               });
@@ -337,69 +273,41 @@ class _NotificationPageState extends State<NotificationPage> {
                   DropdownButtonFormField<String>(
                     decoration: InputDecoration(labelText: 'sharedType'.tr),
                     initialValue: _selectedNotificationType,
-                    items: _notificationTypes.map<DropdownMenuItem<String>>((
-                      type,
-                    ) {
-                      final String? localizationKey =
-                          notificationTypeKeys[type['type']];
-                      final String displayValue = localizationKey != null
-                          ? localizationKey.tr
-                          : type['type'];
-                      return DropdownMenuItem<String>(
-                        value: type['type'],
-                        child: Text(displayValue),
-                      );
+                    items: _notificationTypes.map<DropdownMenuItem<String>>((type) {
+                      final String? localizationKey = notificationTypeKeys[type['type']];
+                      final String displayValue = localizationKey != null ? localizationKey.tr : type['type'];
+                      return DropdownMenuItem<String>(value: type['type'], child: Text(displayValue));
                     }).toList(),
                     onChanged: (value) {
                       setState(() {
                         _selectedNotificationType = value;
                       });
                     },
-                    validator: (value) =>
-                        value == null ? 'sharedRequired'.tr : null,
+                    validator: (value) => value == null ? 'sharedRequired'.tr : null,
                   ),
                   const SizedBox(height: 16),
                   ListTile(
                     title: Text('sharedNotifications'.tr),
-                    subtitle: Text(
-                      _selectedNotificators
-                          .map(
-                            (type) => notificatorKeys[type] != null
-                                ? notificatorKeys[type]!.tr
-                                : type,
-                          )
-                          .join(', '),
-                    ),
+                    subtitle: Text(_selectedNotificators.map((type) => notificatorKeys[type] != null ? notificatorKeys[type]!.tr : type).join(', ')),
                     trailing: const Icon(CupertinoIcons.chevron_down),
                     onTap: _showNotificatorSelection,
                   ),
                   if (_selectedNotificators.contains('command'))
                     DropdownButtonFormField<int>(
-                      decoration: InputDecoration(
-                        labelText: 'sharedSavedCommand'.tr,
-                      ),
+                      decoration: InputDecoration(labelText: 'sharedSavedCommand'.tr),
                       initialValue: _selectedCommandId,
                       items: _commands.map<DropdownMenuItem<int>>((command) {
-                        return DropdownMenuItem<int>(
-                          value: command['id'],
-                          child: Text(
-                            command['description'] ?? 'unnamedCommand'.tr,
-                          ),
-                        );
+                        return DropdownMenuItem<int>(value: command['id'], child: Text(command['description'] ?? 'unnamedCommand'.tr));
                       }).toList(),
                       onChanged: (value) {
                         setState(() {
                           _selectedCommandId = value;
                         });
                       },
-                      validator: (value) =>
-                          value == null ? 'requiredForCommand'.tr : null,
+                      validator: (value) => value == null ? 'requiredForCommand'.tr : null,
                     ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _testNotificators,
-                    child: Text('sharedTestNotificators'.tr),
-                  ),
+                  ElevatedButton(onPressed: _testNotificators, child: Text('sharedTestNotificators'.tr)),
                   const SizedBox(height: 16),
                   CheckboxListTile(
                     title: Text('notificationAlways'.tr),
@@ -420,19 +328,14 @@ class _NotificationPageState extends State<NotificationPage> {
                 children: [
                   TextFormField(
                     controller: _descriptionController,
-                    decoration: InputDecoration(
-                      labelText: 'sharedDescription'.tr,
-                    ),
+                    decoration: InputDecoration(labelText: 'sharedDescription'.tr),
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<int>(
                     decoration: InputDecoration(labelText: 'sharedCalendar'.tr),
                     initialValue: _selectedCalendarId,
                     items: _calendars.map<DropdownMenuItem<int>>((calendar) {
-                      return DropdownMenuItem<int>(
-                        value: calendar['id'],
-                        child: Text(calendar['name'] ?? 'unnamedCalendar'.tr),
-                      );
+                      return DropdownMenuItem<int>(value: calendar['id'], child: Text(calendar['name'] ?? 'unnamedCalendar'.tr));
                     }).toList(),
                     onChanged: (value) {
                       setState(() {
@@ -462,10 +365,7 @@ class _NotificationPageState extends State<NotificationPage> {
                     },
                     child: Text('sharedCancel'.tr),
                   ),
-                  ElevatedButton(
-                    onPressed: _saveNotification,
-                    child: Text('sharedSave'.tr),
-                  ),
+                  ElevatedButton(onPressed: _saveNotification, child: Text('sharedSave'.tr)),
                 ],
               ),
             ],

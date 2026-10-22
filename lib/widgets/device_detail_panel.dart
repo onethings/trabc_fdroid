@@ -255,7 +255,7 @@ class _DeviceDetailPanelState extends State<DeviceDetailPanel> {
     if (todayDistance != null && todayDistance > 0) {
       items.add(_buildStatusItem(context, Icons.route_rounded, '${(todayDistance / 1000).toInt()} ${'sharedKm'.tr}', 'dashboardTodayDistance'.tr));
     }
-    
+
     // 5) 當日點火時數（summary.engineHours 單位是毫秒）
     final engineHours = _dailySummary?.engineHours;
     if (engineHours != null && engineHours > 0) {

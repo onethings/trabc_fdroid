@@ -15,18 +15,14 @@ class ApiClientFactory {
   /// - `Accept: application/json`
   /// - the shared session cookie
   /// - single-flight 401 refresh + one retry
-  static api.ApiClient create(
-    String basePath, {
-    AuthSessionStore? sessionStore,
-  }) {
+  static api.ApiClient create(String basePath, {AuthSessionStore? sessionStore}) {
     final store = sessionStore ?? AuthSessionStore.instance;
     final client = api.ApiClient(basePath: basePath);
 
     client.addDefaultHeader('Accept', 'application/json');
     client.client = AuthInterceptingClient(
       sessionIdProvider: () => store.sessionId,
-      refreshSession: () =>
-          AuthService.refreshSession(client: client, store: store),
+      refreshSession: () => AuthService.refreshSession(client: client, store: store),
       onUnauthorized: () async {
         await store.clear();
         Get.offAllNamed('/login');

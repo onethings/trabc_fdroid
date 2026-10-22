@@ -23,10 +23,10 @@ class OfflineAddressService {
   static Database? _db;
   static String? _currentLang;
   static Box? _cacheBox;
+  static const String _addressCacheVersion = 'v2';
 
   // Local AI State: 軌跡黏著 (Trajectory Stickiness)
   static String? _lastMatchedStreetName;
-  static String? _lastMatchedTown;
   static String? _lastMatchedState;
 
   static const String _base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
@@ -50,8 +50,7 @@ class OfflineAddressService {
 
   // Nominatim Rate Limiting & Queue State
   static DateTime? _lastNominatimRequest;
-  static const int _minNominatimIntervalMs =
-      1550; // Slightly more than 1.5s for safety
+  static const int _minNominatimIntervalMs = 1500;
 
   static bool _isProcessingQueue = false;
 
@@ -67,21 +66,15 @@ class OfflineAddressService {
   }
 
   static String? _getDbName(String langCode) {
-    if (langCode == 'zh') return "chinese_ultra_res.db";
     if (langCode == 'my') {
       return "myanmar_ultra_res_my.db"; //"myanmar_ultra_res.db";
     }
-    if (langCode == 'en') return "english_ultra_res.db";
-    return null; // Return null if no specific DB for this language
+    return null;
   }
 
   static Future<void> initDatabase({String? manualLangCode}) async {
     await _initCache();
-    String langCode =
-        manualLangCode ??
-        Get.locale?.languageCode ??
-        Get.deviceLocale?.languageCode ??
-        'en';
+    String langCode = manualLangCode ?? _getCurrentLanguageCode();
 
     // 關鍵修正：確保 _currentLang 與當前 Get.locale 同步
     if (_db != null && _currentLang == langCode) return;
@@ -93,29 +86,24 @@ class OfflineAddressService {
 
     String? dbName = _getDbName(langCode);
     if (dbName != null) {
-      try {
-        var databasesPath = await getDatabasesPath();
-        var path = join(databasesPath, dbName);
+      var databasesPath = await getDatabasesPath();
+      var path = join(databasesPath, dbName);
 
-        if (!(await databaseExists(path))) {
-          ByteData data = await rootBundle.load("assets/sqldb/$dbName");
-          List<int> bytes = data.buffer.asUint8List(
-            data.offsetInBytes,
-            data.lengthInBytes,
-          );
-          await File(path).writeAsBytes(bytes, flush: true);
-        }
-
-        _db = await openDatabase(path, readOnly: true);
-      } catch (_) {
-        // Offline DB is not bundled (e.g. F-Droid build). Fall back to the
-        // online (Nominatim) lookup path below.
-        _db = null;
+      if (!(await databaseExists(path))) {
+        ByteData data = await rootBundle.load("assets/sqldb/$dbName");
+        List<int> bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+        await File(path).writeAsBytes(bytes, flush: true);
       }
+
+      _db = await openDatabase(path, readOnly: true);
     } else {
       _db = null; // No offline DB for this language
     }
     _currentLang = langCode;
+  }
+
+  static String _getCurrentLanguageCode() {
+    return Get.locale?.languageCode ?? Get.deviceLocale?.languageCode ?? 'en';
   }
 
   static Future<void> forceSwitchLanguage(String langCode) async {
@@ -124,51 +112,52 @@ class OfflineAddressService {
 
   static String? getAddressFromCache(double lat, double lon) {
     if (_cacheBox == null || !_cacheBox!.isOpen) return null;
-    final String fullHash = GeoHasher().encode(lon, lat, precision: 9);
-    final String cacheKey = "${_currentLang}_${fullHash.substring(0, 7)}";
-    return _cacheBox!.get(cacheKey);
+    return _cacheBox!.get(_cacheKey(lat, lon));
   }
 
   /// 核心邏輯移植：使用 Java 版的九宮格搜尋策略
   static Future<String> getAddress(double lat, double lon) async {
-    try {
-      await initDatabase();
-
-      String? cached = getAddressFromCache(lat, lon);
-      if (cached != null) return cached;
-
-      return (await getAddressDetailed(lat, lon)).address;
-    } catch (e) {
-      return "Error: $e";
-    }
+    return (await getAddressDetailed(lat, lon)).address;
   }
 
-  static Future<AddressResult> getAddressDetailed(
-    double lat,
-    double lon,
-  ) async {
-    try {
-      await initDatabase();
-      final String fullHash = GeoHasher().encode(lon, lat, precision: 9);
-      final String cacheKey = "${_currentLang}_${fullHash.substring(0, 7)}";
+  static String _cacheKey(double lat, double lon) {
+    final String fullHash = GeoHasher().encode(lon, lat, precision: 9);
+    return "${_currentLang}_${_addressCacheVersion}_${fullHash.substring(0, 7)}";
+  }
 
-      if (_cacheBox?.containsKey(cacheKey) ?? false) {
-        return AddressResult(address: _cacheBox!.get(cacheKey));
+  static Future<AddressResult> getAddressDetailed(double lat, double lon) async {
+    try {
+      await _initCache();
+      final String langCode = _getCurrentLanguageCode();
+      if (_currentLang != langCode) {
+        if (_db != null) {
+          await _db!.close();
+          _db = null;
+        }
+        _currentLang = langCode;
       }
 
-      // --- 語言策略優先順序 ---
-      // 1. 如果是緬甸語 (my)，且本地沒有緬文 DB，先嘗試從 Nominatim 拿真正的緬文
-      if (_currentLang == 'my') {
-        String? remote = await _getRemoteAddressQueued(lat, lon);
-        if (remote != null) {
-          return AddressResult(address: remote);
+      final String cacheKey = _cacheKey(lat, lon);
+      if (_cacheBox?.containsKey(cacheKey) ?? false) {
+        final String cachedAddress = _cacheBox!.get(cacheKey);
+        if (!_isCoordinateFallback(cachedAddress, lat, lon)) {
+          return AddressResult(address: cachedAddress);
         }
       }
 
-      // if (_db == null) return AddressResult(address: "Unknown");
-      // Don't return here, let it fallback to Nominatim if _db is null
+      final String? remote = await _getRemoteAddressQueued(lat, lon);
+      if (remote != null) {
+        return AddressResult(address: remote);
+      }
 
-      String? street, town, state;
+      if (langCode != 'my') {
+        return AddressResult(address: "${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}");
+      }
+
+      await initDatabase(manualLangCode: langCode);
+      final String fullHash = GeoHasher().encode(lon, lat, precision: 9);
+
+      String? street, state;
       int? matchedStreetGeohash;
 
       // 1. 街道搜索 (精度 9 -> 7)
@@ -192,42 +181,26 @@ class OfflineAddressService {
           List<Map> res;
           if (len == 8) {
             // 精確 8 位查詢: WHERE gh IN (ints)
-            List<int> searchInts = searchPrefixes
-                .map((e) => _ghToInt(e))
-                .toList();
+            List<int> searchInts = searchPrefixes.map((e) => _ghToInt(e)).toList();
             String placeholders = List.filled(searchInts.length, "?").join(",");
-            res = await _db!.rawQuery(
-              "SELECT n.name, s.gh, s.weight FROM streets s JOIN names n ON s.name_id = n.id WHERE s.gh IN ($placeholders) LIMIT $limit",
-              searchInts,
-            );
+            res = await _db!.rawQuery("SELECT n.name, s.gh, s.weight FROM streets s JOIN names n ON s.name_id = n.id WHERE s.gh IN ($placeholders) LIMIT $limit", searchInts);
           } else {
             // 7 位字首查詢: 轉化為 8 位的範圍查詢 (BETWEEN)
             // 每個 7 位 Geohash 對應 32 個 8 位 Geohash (val << 5 到 (val << 5) + 31)
-            String whereClause = List.filled(
-              searchPrefixes.length,
-              "(s.gh BETWEEN ? AND ?)",
-            ).join(" OR ");
+            String whereClause = List.filled(searchPrefixes.length, "(s.gh BETWEEN ? AND ?)").join(" OR ");
             List<int> args = [];
             for (var prefix in searchPrefixes) {
               int base = _ghToInt(prefix) << 5;
               args.add(base);
               args.add(base + 31);
             }
-            res = await _db!.rawQuery(
-              "SELECT n.name, s.gh, s.weight FROM streets s JOIN names n ON s.name_id = n.id WHERE $whereClause LIMIT $limit",
-              args,
-            );
+            res = await _db!.rawQuery("SELECT n.name, s.gh, s.weight FROM streets s JOIN names n ON s.name_id = n.id WHERE $whereClause LIMIT $limit", args);
           }
           candidates.addAll(res);
 
           if (candidates.isNotEmpty) {
             // Local AI: 傳入上一條路名進行黏著評分
-            var best = _findClosestItem(
-              lat,
-              lon,
-              candidates,
-              previousStreetName: _lastMatchedStreetName,
-            );
+            var best = _findClosestItem(lat, lon, candidates, previousStreetName: _lastMatchedStreetName);
 
             if (best != null) {
               street = best['name']?.toString();
@@ -250,25 +223,8 @@ class OfflineAddressService {
 
       List<Map> admins5 = await _queryRegionsIn(blocks5, 5);
       if (admins5.isNotEmpty) {
-        // 優先找最近的鎮區 (lvl 8-15)
-        var closestTown = _findClosestItem(
-          lat,
-          lon,
-          admins5.where((e) => e['lvl'] >= 8).toList(),
-          previousStreetName: _lastMatchedTown,
-        );
-        if (closestTown != null) {
-          town = closestTown['admin']?.toString();
-          _lastMatchedTown = town;
-        }
-
         // 找最近的省份 (lvl 0-6)
-        var closestState = _findClosestItem(
-          lat,
-          lon,
-          admins5.where((e) => e['lvl'] <= 6).toList(),
-          previousStreetName: _lastMatchedState,
-        );
+        var closestState = _findClosestItem(lat, lon, admins5.where((e) => e['lvl'] <= 6).toList(), previousStreetName: _lastMatchedState);
         if (closestState != null) {
           state = closestState['admin']?.toString();
           _lastMatchedState = state;
@@ -276,7 +232,7 @@ class OfflineAddressService {
       }
 
       // --- 第二階段：補救邏輯 (如果沒找到，擴大到精度 4 的九宮格) ---
-      if (state == null || town == null) {
+      if (state == null) {
         String center4 = fullHash.substring(0, 4);
         List<String> blocks4 = _getNeighbors(center4);
         blocks4.add(center4);
@@ -284,79 +240,45 @@ class OfflineAddressService {
         List<Map> admins4 = await _queryRegionsIn(blocks4, 4);
 
         if (state == null) {
-          var closestState = _findClosestItem(
-            lat,
-            lon,
-            admins4.where((e) => e['lvl'] <= 6).toList(),
-            previousStreetName: _lastMatchedState,
-          );
+          var closestState = _findClosestItem(lat, lon, admins4.where((e) => e['lvl'] <= 6).toList(), previousStreetName: _lastMatchedState);
           if (closestState != null) {
             state = closestState['admin']?.toString();
             _lastMatchedState = state;
           }
         }
-
-        if (town == null) {
-          var closestTown = _findClosestItem(
-            lat,
-            lon,
-            admins4.where((e) => e['lvl'] >= 8).toList(),
-            previousStreetName: _lastMatchedTown,
-          );
-          if (closestTown != null) {
-            town = closestTown['admin']?.toString();
-            _lastMatchedTown = town;
-          }
-        }
       }
 
-      // 3. 組合地址: 嚴格遵循「路名，行政區，城市」格式
-      String result = _formatAddressParts(street, town, state, lat, lon);
+      // Offline region cells can cover multiple townships, so omit the
+      // township and only use the broader city/state value.
+      String result = _formatAddressParts(street, null, state, lat, lon);
 
-      // --- 補救機制：如果離線庫查不到街道，且之前沒跑過遠端，就嘗試 Nominatim ---
-      if (street == null && _currentLang != 'my') {
-        String? remoteAddress = await _getRemoteAddressQueued(lat, lon);
-        if (remoteAddress != null) {
-          result = remoteAddress;
-          // Note: we don't update _lastMatchedTown/State from Nominatim yet
-          // as we want to keep the offline context if the user moves back to a known area
-        }
+      if (_isCoordinateFallback(result, lat, lon)) {
+        return AddressResult(address: result, matchedGeohash: matchedStreetGeohash != null ? _intToGh(matchedStreetGeohash, 8) : null);
       }
 
       // --- Hive 快取管理與自動清理 ---
-      if (_cacheBox != null &&
-          result !=
-              "Location: ${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}") {
+      if (_cacheBox != null) {
         // 當資料超過 10.5 萬筆時，清理掉最舊的 1 萬筆
         if (_cacheBox!.length > 105000) {
-          final List<dynamic> keysToDelete = _cacheBox!.keys
-              .take(10000)
-              .toList();
+          final List<dynamic> keysToDelete = _cacheBox!.keys.take(10000).toList();
           await _cacheBox!.deleteAll(keysToDelete);
         }
         // 改成不使用 await，讓它在背景執行
         _cacheBox?.put(cacheKey, result);
       }
 
-      return AddressResult(
-        address: result,
-        matchedGeohash: matchedStreetGeohash != null
-            ? _intToGh(matchedStreetGeohash, 8)
-            : null,
-      );
+      return AddressResult(address: result, matchedGeohash: matchedStreetGeohash != null ? _intToGh(matchedStreetGeohash, 8) : null);
     } catch (e) {
       return AddressResult(address: "Error: $e");
     }
   }
 
+  static bool _isCoordinateFallback(String address, double lat, double lon) {
+    return address == "${lat.toStringAsFixed(4)}, ${lon.toStringAsFixed(4)}";
+  }
+
   /// 封裝：嚴格遵循格式化的地址組合
-  static String _formatAddressParts(
-    String? street,
-    String? district,
-    String? city,
-    double lat,
-    double lon,
-  ) {
+  static String _formatAddressParts(String? street, String? district, String? city, double lat, double lon) {
     List<String> parts = [];
     if (street != null && street.isNotEmpty) parts.add(street);
     if (district != null && district.isNotEmpty) parts.add(district);
@@ -378,11 +300,7 @@ class OfflineAddressService {
     return completer.future;
   }
 
-  static void _processNominatimRequest(
-    double lat,
-    double lon,
-    Completer<String?> completer,
-  ) async {
+  static void _processNominatimRequest(double lat, double lon, Completer<String?> completer) async {
     // 簡單的順序排隊邏輯
     while (_isProcessingQueue) {
       await Future.delayed(const Duration(milliseconds: 300));
@@ -394,9 +312,7 @@ class OfflineAddressService {
       if (_lastNominatimRequest != null) {
         final elapsed = now.difference(_lastNominatimRequest!).inMilliseconds;
         if (elapsed < _minNominatimIntervalMs) {
-          await Future.delayed(
-            Duration(milliseconds: _minNominatimIntervalMs - elapsed),
-          );
+          await Future.delayed(Duration(milliseconds: _minNominatimIntervalMs - elapsed));
         }
       }
 
@@ -411,57 +327,28 @@ class OfflineAddressService {
   }
 
   /// 獲取結構化的 Nominatim 地址
-  static Future<String?> _fetchNominatimStructured(
-    double lat,
-    double lon,
-  ) async {
+  static Future<String?> _fetchNominatimStructured(double lat, double lon) async {
     try {
-      final url = Uri.parse(
-        "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon&zoom=18&addressdetails=1",
-      );
+      final url = Uri.parse("https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon&zoom=18&addressdetails=1");
 
-      final response = await http
-          .get(
-            url,
-            headers: {
-              'User-Agent': 'ShweGPS-Pro-App-Flutter',
-              'Accept-Language': _currentLang ?? 'en',
-            },
-          )
-          .timeout(const Duration(seconds: 5));
+      final response = await http.get(url, headers: {'User-Agent': 'ShweGPS-Pro-App-Flutter', 'Accept-Language': _currentLang ?? 'en'}).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final addressObj = data['address'];
         if (addressObj != null) {
           // 嚴格對應欄位
-          String? road =
-              (addressObj['road'] ??
-                      addressObj['pedestrian'] ??
-                      addressObj['hamlet'])
-                  ?.toString();
-          String? district =
-              (addressObj['suburb'] ??
-                      addressObj['neighbourhood'] ??
-                      addressObj['township'] ??
-                      addressObj['village'] ??
-                      addressObj['county'])
-                  ?.toString();
-          String? city =
-              (addressObj['city'] ?? addressObj['town'] ?? addressObj['state'])
-                  ?.toString();
+          String? road = (addressObj['road'] ?? addressObj['pedestrian'] ?? addressObj['hamlet'])?.toString();
+          String? district = (addressObj['suburb'] ?? addressObj['neighbourhood'] ?? addressObj['township'] ?? addressObj['village'] ?? addressObj['county'])?.toString();
+          String? city = (addressObj['city'] ?? addressObj['town'] ?? addressObj['state'])?.toString();
 
-          String formatted = _formatAddressParts(
-            road,
-            district,
-            city,
-            lat,
-            lon,
-          );
+          String formatted = _formatAddressParts(road, district, city, lat, lon);
+          if (_isCoordinateFallback(formatted, lat, lon)) {
+            return null;
+          }
 
           // 快取到 Hive
-          final String fullHash = GeoHasher().encode(lon, lat, precision: 9);
-          final String cacheKey = "${_currentLang}_${fullHash.substring(0, 7)}";
+          final String cacheKey = _cacheKey(lat, lon);
           _cacheBox?.put(cacheKey, formatted);
 
           return formatted;
@@ -528,12 +415,7 @@ class OfflineAddressService {
           lonHalf = 0.1;
       }
 
-      final bounds = [
-        LatLng(lat + latHalf, lon - lonHalf),
-        LatLng(lat + latHalf, lon + lonHalf),
-        LatLng(lat - latHalf, lon + lonHalf),
-        LatLng(lat - latHalf, lon - lonHalf),
-      ];
+      final bounds = [LatLng(lat + latHalf, lon - lonHalf), LatLng(lat + latHalf, lon + lonHalf), LatLng(lat - latHalf, lon + lonHalf), LatLng(lat - latHalf, lon - lonHalf)];
       debugPrint("Geohash $geohash bounds: $bounds");
       return bounds;
     } catch (e) {
@@ -543,10 +425,7 @@ class OfflineAddressService {
   }
 
   /// 移植 Java 的 queryRegionsIn：使用 IN 子句查詢多個網格
-  static Future<List<Map>> _queryRegionsIn(
-    List<String> prefixes,
-    int len,
-  ) async {
+  static Future<List<Map>> _queryRegionsIn(List<String> prefixes, int len) async {
     if (prefixes.isEmpty || _db == null) return [];
 
     // 構建整數查詢
@@ -554,26 +433,17 @@ class OfflineAddressService {
       // regions 表存儲的是 5 位 Geohash 整數，直接用 IN
       List<int> searchInts = prefixes.map((e) => _ghToInt(e)).toList();
       String placeholders = List.filled(searchInts.length, "?").join(",");
-      return await _db!.rawQuery(
-        "SELECT n.name AS admin, r.lvl, r.gh FROM regions r JOIN names n ON r.name_id = n.id WHERE r.gh IN ($placeholders)",
-        searchInts,
-      );
+      return await _db!.rawQuery("SELECT n.name AS admin, r.lvl, r.gh FROM regions r JOIN names n ON r.name_id = n.id WHERE r.gh IN ($placeholders)", searchInts);
     } else {
       // 4 位查詢需要轉換為 5 位的範圍
-      String whereClause = List.filled(
-        prefixes.length,
-        "(r.gh BETWEEN ? AND ?)",
-      ).join(" OR ");
+      String whereClause = List.filled(prefixes.length, "(r.gh BETWEEN ? AND ?)").join(" OR ");
       List<int> args = [];
       for (var p in prefixes) {
         int base = _ghToInt(p) << 5;
         args.add(base);
         args.add(base + 31);
       }
-      return await _db!.rawQuery(
-        "SELECT n.name AS admin, r.lvl, r.gh FROM regions r JOIN names n ON r.name_id = n.id WHERE $whereClause",
-        args,
-      );
+      return await _db!.rawQuery("SELECT n.name AS admin, r.lvl, r.gh FROM regions r JOIN names n ON r.name_id = n.id WHERE $whereClause", args);
     }
   }
 
@@ -620,51 +490,23 @@ class OfflineAddressService {
         break;
     }
 
-    List<double> dLat = [
-      latErr,
-      latErr,
-      0,
-      -latErr,
-      -latErr,
-      -latErr,
-      0,
-      latErr,
-    ];
-    List<double> dLon = [
-      0,
-      lonErr,
-      lonErr,
-      lonErr,
-      0,
-      -lonErr,
-      -lonErr,
-      -lonErr,
-    ];
+    List<double> dLat = [latErr, latErr, 0, -latErr, -latErr, -latErr, 0, latErr];
+    List<double> dLon = [0, lonErr, lonErr, lonErr, 0, -lonErr, -lonErr, -lonErr];
 
     for (int i = 0; i < 8; i++) {
-      neighbors.add(
-        GeoHasher().encode(lon + dLon[i], lat + dLat[i], precision: len),
-      );
+      neighbors.add(GeoHasher().encode(lon + dLon[i], lat + dLat[i], precision: len));
     }
     return neighbors;
   }
 
-  static Map? _findClosestItem(
-    double lat,
-    double lon,
-    List<Map> items, {
-    String? previousStreetName,
-  }) {
+  static Map? _findClosestItem(double lat, double lon, List<Map> items, {String? previousStreetName}) {
     if (items.isEmpty) return null;
     double minScore = double.infinity;
     Map? best;
 
     for (var item in items) {
       // gh 現在是整數，需要轉回字串解碼 (或者手動位運算解碼更佳，但為保持一致性先轉回)
-      final String ghStr = _intToGh(
-        item['gh'] as int,
-        item.containsKey('lvl') ? 5 : 8,
-      );
+      final String ghStr = _intToGh(item['gh'] as int, item.containsKey('lvl') ? 5 : 8);
       final decoded = GeoHasher().decode(ghStr);
       final double pLat = decoded[1];
       final double pLon = decoded[0];
@@ -680,9 +522,7 @@ class OfflineAddressService {
       }
 
       // 2. 軌跡黏著度 (Stickiness Logic)
-      if (previousStreetName != null &&
-          (item['name'] == previousStreetName ||
-              item['admin'] == previousStreetName)) {
+      if (previousStreetName != null && (item['name'] == previousStreetName || item['admin'] == previousStreetName)) {
         // 針對不同層級給予不同的優先權係數
         // 鎮區 (lvl >= 8) 中心點較遠，給予較大權重；路名 (lvl 無) 精度高，給予精確權重
         double bonus = item.containsKey('lvl') ? 0.05 : 0.0005;

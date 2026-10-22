@@ -177,6 +177,7 @@ const Map<String, String> zhTw = {
   "errorGeneral": "非法的參數或違反限制",
   "errorConnection": "連線錯誤",
   "errorSocket": "網頁接口連線錯誤",
+  "retry": "重試",
   "errorZero": "不能為零",
   "userEmail": "電子郵件",
   "userPassword": "密碼",
@@ -700,4 +701,6 @@ const Map<String, String> zhTw = {
   "dashboardDeviceStatus": "裝置狀態",
   "dashboardNoDevices": "沒有裝置",
   "justNow": "現在",
+  "minimalViewMode": "極簡觀看模式",
+  "standardViewMode": "標準觀看模式",
 };

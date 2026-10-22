@@ -253,7 +253,7 @@ class _EmulatorScreenState extends State<EmulatorScreen> {
 
     try {
       final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=geojson&polygon_geojson=1&limit=8&addressdetails=1');
-      final response = await http.get(url, headers: {'User-Agent': 'Trabc/1.0'});
+      final response = await http.get(url, headers: {'User-Agent': 'Trabcdefg/1.0'});
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

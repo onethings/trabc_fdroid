@@ -578,45 +578,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     final email = provider.currentUser?.email ?? AuthSessionStore.instance.email ?? '-';
                     final secondaryText = TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.58), fontSize: 12);
 
-                      return Card(
-                        margin: EdgeInsets.zero,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(CupertinoIcons.info_circle, size: 17, color: colorScheme.primary),
-                                  const SizedBox(width: 8),
-                                  Text('sharedInfoTitle'.tr, style: Theme.of(context).textTheme.titleSmall),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text('${'appVersion'.tr}: ${packageSnapshot.data == null ? '-' : '${packageSnapshot.data!.version}+${packageSnapshot.data!.buildNumber}'}', style: secondaryText),
-                              const SizedBox(height: 4),
-                              Text('${'settingsServer'.tr}: $serverUrl', style: secondaryText),
-                              const SizedBox(height: 4),
-                              FutureBuilder<String?>(
-                                future: _serverVersion,
-                                builder: (context, versionSnapshot) {
-                                  final version = versionSnapshot.data;
-                                  if (version == null) return const SizedBox.shrink();
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text('${'settingsServerVersion'.tr}: $version', style: secondaryText),
-                                  );
-                                },
-                              ),
-                              Text('${'userEmail'.tr}: $email', style: secondaryText),
-                            ],
-                          ),
+                    return Card(
+                      margin: EdgeInsets.zero,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(CupertinoIcons.info_circle, size: 17, color: colorScheme.primary),
+                                const SizedBox(width: 8),
+                                Text('sharedInfoTitle'.tr, style: Theme.of(context).textTheme.titleSmall),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text('${'appVersion'.tr}: ${packageSnapshot.data == null ? '-' : '${packageSnapshot.data!.version}+${packageSnapshot.data!.buildNumber}'}', style: secondaryText),
+                            const SizedBox(height: 4),
+                            Text('${'settingsServer'.tr}: $serverUrl', style: secondaryText),
+                            const SizedBox(height: 4),
+                            FutureBuilder<String?>(
+                              future: _serverVersion,
+                              builder: (context, versionSnapshot) {
+                                final version = versionSnapshot.data;
+                                if (version == null) return const SizedBox.shrink();
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Text('${'settingsServerVersion'.tr}: $version', style: secondaryText),
+                                );
+                              },
+                            ),
+                            Text('${'userEmail'.tr}: $email', style: secondaryText),
+                          ],
                         ),
-                      );
-                },
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
             ),
           ],
         ),

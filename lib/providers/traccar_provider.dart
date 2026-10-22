@@ -1,5 +1,7 @@
 // lib/providers/traccar_provider.dart
 // Provider to manage Traccar API interactions and WebSocket connections.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:trabc_fdroid/services/auth_service.dart';
 import 'package:trabc_fdroid/services/auth_session_store.dart';
@@ -25,6 +27,9 @@ class TraccarProvider with ChangeNotifier {
   List<api.Device> _devices = [];
   List<api.Position> _positions = [];
   final Map<int, api.Position> _positionMap = {};
+  StreamSubscription<Map<String, dynamic>>? _webSocketSubscription;
+  Future<void>? _initialDataFuture;
+  Map<int, api.Position>? _webSocketPositionsDuringFetch;
 
   /// 位置資料版本號：每次 positions 有變動就 +1。
   ///
@@ -222,9 +227,7 @@ class TraccarProvider with ChangeNotifier {
   }
 
   void _listenToWebSocket() {
-    webSocketService.stream.listen((message) {
-      final data = message;
-
+    _webSocketSubscription = webSocketService.stream.listen((data) {
       if (data['devices'] != null) {
         final deviceList = (data['devices'] as Iterable).map((model) => api.Device.fromJson(model)).whereType<api.Device>().toList();
 
@@ -247,6 +250,7 @@ class TraccarProvider with ChangeNotifier {
 
           if (newPosition != null && newPosition.deviceId != null) {
             _positionMap[newPosition.deviceId!] = newPosition;
+            _webSocketPositionsDuringFetch?[newPosition.deviceId!] = newPosition;
 
             final existingPositionIndex = _positions.indexWhere((pos) => pos.deviceId == newPosition.deviceId);
 
@@ -282,9 +286,44 @@ class TraccarProvider with ChangeNotifier {
     });
   }
 
+  @override
+  void dispose() {
+    unawaited(_webSocketSubscription?.cancel());
+    webSocketService.disconnect();
+    final sessionStore = AuthSessionStore.instance;
+    sessionStore.onSessionUpdated = null;
+    sessionStore.onSessionCleared = null;
+    if (identical(_instance, this)) _instance = null;
+    super.dispose();
+  }
+
   api.User? get currentUser => _currentUser;
 
   List<api.Device> get devices => _devices;
+
+  void updateDevice(api.Device updatedDevice) {
+    final index = _devices.indexWhere((device) => device.id == updatedDevice.id);
+    if (index == -1) return;
+
+    final current = _devices[index];
+    _devices[index] = api.Device(
+      id: updatedDevice.id,
+      name: updatedDevice.name,
+      uniqueId: updatedDevice.uniqueId,
+      status: current.status,
+      disabled: updatedDevice.disabled,
+      lastUpdate: current.lastUpdate,
+      positionId: current.positionId,
+      groupId: updatedDevice.groupId,
+      phone: updatedDevice.phone,
+      model: updatedDevice.model,
+      contact: updatedDevice.contact,
+      category: updatedDevice.category,
+      attributes: updatedDevice.attributes,
+    );
+    notifyListeners();
+  }
+
   List<api.Position> get positions => _positions;
   api.Position? getPosition(int deviceId) => _positionMap[deviceId];
   List<api.Event> get events => _events;
@@ -357,7 +396,21 @@ class TraccarProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> fetchInitialData() async {
+  Future<void> fetchInitialData() {
+    final inFlight = _initialDataFuture;
+    if (inFlight != null) return inFlight;
+
+    late final Future<void> request;
+    request = _fetchInitialData().whenComplete(() {
+      if (identical(_initialDataFuture, request)) {
+        _initialDataFuture = null;
+      }
+    });
+    _initialDataFuture = request;
+    return request;
+  }
+
+  Future<void> _fetchInitialData() async {
     if (_sessionId == null) {
       throw Exception('Session not set');
     }
@@ -371,6 +424,8 @@ class TraccarProvider with ChangeNotifier {
     // This resolves the cold-start PK error.
     apiClient.addDefaultHeader('Accept', 'application/json');
 
+    final websocketPositions = <int, api.Position>{};
+    _webSocketPositionsDuringFetch = websocketPositions;
     try {
       final sessionApi = api.SessionApi(apiClient);
       final fetchedUser = await sessionApi.getSession();
@@ -379,14 +434,33 @@ class TraccarProvider with ChangeNotifier {
       final geofencesApi = api.GeofencesApi(apiClient);
       final notificationsApi = api.NotificationsApi(apiClient);
 
-      final fetchedDevices = await devicesApi.getDevices();
-      final fetchedPositions = await positionsApi.getPositions();
-      final fetchedGeofences = await geofencesApi.getGeofences();
-      final fetchedNotifications = await notificationsApi.getNotifications();
+      final fetchedDevicesFuture = devicesApi.getDevices();
+      final fetchedPositionsFuture = positionsApi.getPositions();
+      final fetchedGeofencesFuture = geofencesApi.getGeofences();
+      final fetchedNotificationsFuture = notificationsApi.getNotifications();
+      await Future.wait<Object?>([fetchedDevicesFuture, fetchedPositionsFuture, fetchedGeofencesFuture, fetchedNotificationsFuture]);
+
+      final fetchedDevices = await fetchedDevicesFuture;
+      final fetchedPositions = await fetchedPositionsFuture;
+      final fetchedGeofences = await fetchedGeofencesFuture;
+      final fetchedNotifications = await fetchedNotificationsFuture;
 
       _currentUser = fetchedUser;
       _devices = (fetchedDevices ?? []).whereType<api.Device>().toList();
       _positions = fetchedPositions ?? [];
+      final positionIndexes = <int, int>{
+        for (var index = 0; index < _positions.length; index++)
+          if (_positions[index].deviceId != null) _positions[index].deviceId!: index,
+      };
+      for (final entry in websocketPositions.entries) {
+        final index = positionIndexes[entry.key];
+        if (index == null) {
+          positionIndexes[entry.key] = _positions.length;
+          _positions.add(entry.value);
+        } else {
+          _positions[index] = entry.value;
+        }
+      }
       _geofences = (fetchedGeofences ?? []).whereType<api.Geofence>().toList();
       _serverNotifications = (fetchedNotifications ?? []).whereType<api.Notification>().toList();
       _positionMap.clear();
@@ -397,6 +471,7 @@ class TraccarProvider with ChangeNotifier {
       }
       _positionsRevision++;
     } finally {
+      _webSocketPositionsDuringFetch = null;
       _isLoading = false;
       notifyListeners();
     }

@@ -255,8 +255,9 @@ class GeofencesScreenState extends State<GeofencesScreen> {
           }
         },
       ),
-      floatingActionButton: Transform.translate(
-        offset: const Offset(0, -45), // 往上移動 45px
+      floatingActionButton: Padding(
+        // 用 Padding 上移：Transform 只改變繪製位置，會讓可點擊區域與畫面位置錯開。
+        padding: const EdgeInsets.only(bottom: 45),
         child: FloatingActionButton(
           onPressed: () async {
             // 【核心修正】在任何 await 發生之前（完全同步的當下），把所有需要 context 的東西通通準備好！
@@ -332,6 +333,14 @@ class AddGeofenceScreenState extends State<AddGeofenceScreen> {
   // --- Tile URLs ---
   static const String _osmUrlTemplate = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   static const String _satelliteUrlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+
+  // 混合地圖（Hybrid）：Esri 的透明參考圖層，疊在衛星影像上補回道路與地名。
+  static const String _satelliteRoadsUrlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}';
+  static const String _satellitePlacesUrlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+
+  /// Esri 參考圖層的快取只到 z16，再放大就沿用 z16 圖磚放大顯示，
+  /// 避免向伺服器要不到圖磚而讓道路／地名整片消失。
+  static const int _satelliteReferenceMaxNativeZoom = 16;
   static const List<String> _osmSubdomains = ['a', 'b', 'c'];
 
   // --- Geocoding search ---
@@ -511,7 +520,7 @@ class AddGeofenceScreenState extends State<AddGeofenceScreen> {
     try {
       // polygon_geojson=1 returns full boundary polygon geometry
       final url = Uri.parse('https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=geojson&polygon_geojson=1&limit=8&addressdetails=1');
-      final response = await _httpClient.get(url, headers: {'User-Agent': 'Trabc/1.0'});
+      final response = await _httpClient.get(url, headers: {'User-Agent': 'Trabcdefg/1.0'});
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final features = data['features'] as List? ?? [];
@@ -885,10 +894,14 @@ class AddGeofenceScreenState extends State<AddGeofenceScreen> {
                       TileLayer(
                         urlTemplate: _mapType == AppMapType.openStreetMap ? _osmUrlTemplate : _satelliteUrlTemplate,
                         subdomains: _mapType == AppMapType.openStreetMap ? _osmSubdomains : const [],
-                        userAgentPackageName: 'com.github.onethings.trabc',
+                        userAgentPackageName: 'com.trabcdefg.app',
                         tileProvider: _tileProvider,
                         tileBuilder: Theme.of(context).brightness == Brightness.dark && _mapType == AppMapType.openStreetMap ? darkModeTileBuilder : null,
                       ),
+                      if (_mapType == AppMapType.satellite) ...[
+                        TileLayer(urlTemplate: _satelliteRoadsUrlTemplate, userAgentPackageName: 'com.trabcdefg.app', tileProvider: _tileProvider, maxNativeZoom: _satelliteReferenceMaxNativeZoom),
+                        TileLayer(urlTemplate: _satellitePlacesUrlTemplate, userAgentPackageName: 'com.trabcdefg.app', tileProvider: _tileProvider, maxNativeZoom: _satelliteReferenceMaxNativeZoom),
+                      ],
                       CircleLayer(circles: _circles),
                       PolygonLayer(polygons: _polygons),
                       MarkerLayer(markers: _polygonMarkers),

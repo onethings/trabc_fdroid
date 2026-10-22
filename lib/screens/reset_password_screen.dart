@@ -25,9 +25,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
   Future<void> _resetPassword() async {
     final String email = _emailController.text;
-    final apiConfig = ApiConfig.fromApiClient(
-      context.read<TraccarProvider>().apiClient,
-    );
+    final apiConfig = ApiConfig.fromApiClient(context.read<TraccarProvider>().apiClient);
     final Uri url = apiConfig.uri('/password/reset');
 
     // 1. 先把需要的 Messenger 和 Navigator 狀態提取出來
